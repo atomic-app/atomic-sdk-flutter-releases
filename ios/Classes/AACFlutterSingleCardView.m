@@ -50,7 +50,7 @@
 
 @end
 
-@interface AACFlutterSingleCardView () <AACSingleCardViewDelegate>
+@interface AACFlutterSingleCardView () <AACSingleCardViewDelegate, AACStreamContainerActionDelegate>
 
 @property (nonatomic, strong) AACFlutterContainerViewController *containerViewController;
 @property (nonatomic, strong) AACSingleCardView *singleCardView;
@@ -95,6 +95,7 @@
     
     [self.containerViewController.view addConstraints:hConstraints];
     [self.containerViewController.view addConstraints:vConstraints];
+    [self.channel invokeMethod:@"viewLoaded" arguments:nil];
 }
 
 - (void)dealloc {
@@ -119,6 +120,18 @@
                          @"width": @(adjustedSize.width),
                          @"height": @(adjustedSize.height)
                      }];
+}
+
+- (void)applyFilter:(AACCardFilter *)filter {
+    [self.singleCardView applyFilter:filter];
+}
+
+- (void)refresh {
+    [self.singleCardView refresh];
+}
+
+- (void)updateVariables {
+    [self.singleCardView updateVariables];
 }
 
 @end

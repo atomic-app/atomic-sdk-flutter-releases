@@ -26,9 +26,10 @@
 
 @end
 
-@interface AACFlutterStreamContainer ()
+@interface AACFlutterStreamContainer () <AACStreamContainerActionDelegate>
 
 @property (nonatomic, strong) AACFlutterContainerViewController *containerViewController;
+@property (nonatomic, strong) AACStreamContainerViewController *streamContainerViewController;
 
 @end
 
@@ -52,6 +53,7 @@
     AACStreamContainerViewController *vc = [[AACStreamContainerViewController alloc] initWithIdentifier:containerId
                                                                         sessionDelegate:self
                                                                           configuration:configuration];
+    self.streamContainerViewController = vc;
     self.containerViewController = [[AACFlutterContainerViewController alloc] init];
     
     UIViewController *rootViewController = [self rootViewController];
@@ -71,6 +73,7 @@
     [self.containerViewController.view addConstraints:vConstraints];
     
     [vc didMoveToParentViewController:self.containerViewController];
+    [self.channel invokeMethod:@"viewLoaded" arguments:nil];
 }
 
 - (void)dealloc {
@@ -80,6 +83,25 @@
     [self.containerViewController didMoveToParentViewController:nil];
     
     self.containerViewController = nil;
+    
+    [self.streamContainerViewController.view removeFromSuperview];
+    self.streamContainerViewController = nil;
 }
 
+- (void)applyFilter:(AACCardFilter *)filter {
+    [self.streamContainerViewController applyFilter:filter];
+}
+
+- (void)refresh {
+    [self.streamContainerViewController refresh];
+}
+
+- (void)updateVariables {
+    [self.streamContainerViewController updateVariables];
+}
+
+#pragma mark - AACStreamContainerActionDelegate
+- (void)streamContainerDidTapActionButton:(AACStreamContainerViewController *)streamContainer {    
+    [self.channel invokeMethod:@"didTapActionButton" arguments:@{}];
+}
 @end

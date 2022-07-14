@@ -1,175 +1,332 @@
 package io.atomic.atomic_sdk_flutter
 
 import android.content.Context
-import android.os.Bundle
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
-import android.widget.FrameLayout
-import androidx.fragment.app.Fragment
-import com.atomic.actioncards.sdk.AACSessionDelegate
+import com.atomic.actioncards.feed.data.model.AACCardEvent
+import com.atomic.actioncards.feed.data.model.AACCardInstance
 import com.atomic.actioncards.sdk.AACStreamContainer
-import io.flutter.plugin.common.BinaryMessenger
-import io.flutter.plugin.common.MethodChannel
+import com.atomic.actioncards.sdk.PresentationMode
 import com.atomic.actioncards.sdk.VotingOption
+import io.atomic.atomic_sdk_flutter.helpers.AACFlutterSessionDelegate
+import io.atomic.atomic_sdk_flutter.helpers.AACFlutterWrapperFragment
+import io.atomic.atomic_sdk_flutter.model.AACContainerSettings
+import io.atomic.atomic_sdk_flutter.utils.asListOfType
+import io.atomic.atomic_sdk_flutter.utils.asStringMapOfType
+import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.platform.PlatformView
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
-import java.util.*
 import kotlinx.coroutines.*
+import java.util.*
 
-internal class AACFlutterSessionDelegate(private val token: String?): AACSessionDelegate() {
-  override fun getToken(completionHandler: (String?, Exception?) -> Unit) {
-    completionHandler(token, null)
-  }
-}
+/**
+ * AACFlutterStreamContainer
+ * Flutter view that wraps an AACStreamContainer.
+ * */
+internal open class AACFlutterStreamContainer(
+  private val context: Context,
+  internal val settings: AACContainerSettings,
+  viewId: Int, binaryMessenger: BinaryMessenger
+) : PlatformView {
 
-internal class AACFlutterWrapperFragment: Fragment() {
-
-  companion object {
-    // View ID is required because Android doesn't assign an ID when the view is created programmatically
-    var ID = 2843828
-  }
-
-  override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
-      savedInstanceState: Bundle?): View? {
-    var layout = FrameLayout(requireContext())
-    var layoutparams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-        ViewGroup.LayoutParams.MATCH_PARENT)
-    layout.layoutParams = layoutparams
-    layout.id = ID++
-    return layout
-  }
-}
-
-/** Flutter view that wraps an Atomic stream container. */
-internal class AACFlutterStreamContainer(
-    private val context: Context,
-    private val parameters: Map<String, Any?>,
-    viewId: Int, binaryMessenger: BinaryMessenger) : PlatformView {
-
-  private var flutterLogger: AACFlutterLogger = AACFlutterLogger()
-  var fragment = AACFlutterWrapperFragment()
-
+  private var fragment = AACFlutterWrapperFragment()
   private lateinit var container: AACStreamContainer
-  private val channel: MethodChannel = MethodChannel(binaryMessenger,
-      "io.atomic.sdk.streamContainer/${viewId}")
+  internal open val channel: MethodChannel =
+    MethodChannel(binaryMessenger, "io.atomic.sdk.streamContainer/${viewId}")
+
+  /// To prevent loading event being triggered multiple times
+  private var isInitialised = false
+
+  init {
+    initAACSDK()
+  }
 
   override fun getView(): View {
     return fragment.requireView()
   }
 
   override fun dispose() {
-    container.destroy(fragment.requireView().id)
-  }
-
-  init {
-    initAACSDK()
-  }
-
-  private fun createFrameLayout(context: Context): FrameLayout {
-    var layout = FrameLayout(context)
-    var layoutparams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-        ViewGroup.LayoutParams.MATCH_PARENT)
-    layout.layoutParams = layoutparams
-    return layout
+    container.destroy(fragment.childFragmentManager)
+    isInitialised = false
   }
 
   private fun initAACSDK() {
-    val containerId = parameters["containerId"] as String
-    val configuration = parameters["configuration"] as java.util.LinkedHashMap<*, *>
-    val launchColors = configuration["launchColors"] as java.util.LinkedHashMap<*, *>
-
-    val cardListRefreshInterval = try {
-      configuration["pollingInterval"] as Int?
-    } catch (e: java.lang.Exception) {
-      null
-    }
-
-    val votingOption = try {
-      configuration["cardVotingOptions"] as String?
-    } catch (e: java.lang.Exception) {
-      null
-    }
-
-    var manager = (context as AACFlutterActivity).supportFragmentManager
+    val manager = (context as AACFlutterActivity).supportFragmentManager
     manager.beginTransaction().add(fragment, "AACFlutterWrapperFragment").commitNow()
 
-    var fm = fragment.childFragmentManager
-
+    val fm = fragment.childFragmentManager
     /**
      * Due to limitations in the Android SDK, we have to request the authentication token once
      * when creating the container, rather than requesting it on-demand.
      */
     CoroutineScope(Dispatchers.Main + NonCancellable).launch {
       val token = getAuthenticationToken()
-      var delegate = AACFlutterSessionDelegate(token)
-      container = AACStreamContainer.create(containerId, delegate, fm)
+      val delegate = AACFlutterSessionDelegate(token)
+      container = buildContainer(delegate)
 
-      cardListRefreshInterval?.let {
+      with(container) {
+        cardEventHandler = ::cardEventHandler
         // The Android SDK expresses the polling interval in milliseconds
-        container.cardListRefreshInterval = it.toLong() * 1000
+        cardListRefreshInterval = settings.pollingInterval * 1000L
+
+        cardVotingOptions = when (settings.cardVotingOptions) {
+          "none" -> EnumSet.of(VotingOption.None)
+          "useful" -> EnumSet.of(VotingOption.Useful)
+          "notUseful" -> EnumSet.of(VotingOption.NotUseful)
+          "both" -> EnumSet.of(VotingOption.Useful, VotingOption.NotUseful)
+          else -> EnumSet.of(VotingOption.None)
+        }
+
+        configuration.apply {
+          launchBackgroundColor = settings.launchColorBackground
+          launchLoadingColor = settings.launchColorLoadingIndicator
+          launchButtonColor = settings.launchColorButton
+          launchTextColor = settings.launchColorText
+          statusBarBackgroundColor = settings.statusBarBackgroundColor
+          settings.customStrings?.let { customStrings ->
+            customStrings["cardListFooterMessage"]?.let {
+              cardListFooterMessage = it
+            }
+            customStrings["cardListTitle"]?.let {
+              cardListTitle = it
+            }
+            customStrings["noInternetConnectionMessage"]?.let {
+              noInternetMessage = it
+            }
+            customStrings["tryAgainTitle"]?.let {
+              tryAgainButtonTitle = it
+            }
+            customStrings["dataLoadFailedMessage"]?.let {
+              apiErrorMessage = it
+            }
+            customStrings["allCardsCompleted"]?.let {
+              allCardsCompleted = it
+            }
+            customStrings["awaitingFirstCard"]?.let {
+              awaitingFirstCard = it
+            }
+            customStrings["cardSnoozeTitle"]?.let {
+              cardSnoozeTitle = it
+            }
+            customStrings["votingUseful"]?.let {
+              votingUsefulTitle = it
+            }
+            customStrings["votingNotUseful"]?.let {
+              votingNotUsefulTitle = it
+            }
+            customStrings["votingFeedbackTitle"]?.let {
+              votingFeedbackTitle = it
+            }
+          }
+          settings.enabledUiElements?.let {
+            cardListHeaderEnabled = it.contains("cardListHeader")
+            toastMessagesEnabled = it.contains("cardListToast")
+          }
+          presentationStyle = when (settings.presentationStyle) {
+            "withoutButton" -> PresentationMode.WITHOUT_ACTION_BUTTON
+            "withActionButton" -> PresentationMode.WITH_ACTION_BUTTON
+            else -> PresentationMode.WITHOUT_ACTION_BUTTON
+          }
+
+          cardDidRequestRuntimeVariablesHandler = ::cardDidRequestRuntimeVariables
+          runtimeVariableResolutionTimeout = settings.runtimeVariableResolutionTimeout
+          runtimeVariableAnalyticsEnabled = settings.features.runtimeVariableAnalyticsEnabled
+
+          actionDelegate = {
+            channel.invokeMethod("didTapActionButton", null)
+          }
+          linkButtonWithPayloadActionHandler = {
+            channel.invokeMethod(
+              "didTapLinkButton",
+              mapOf(
+                "cardInstanceId" to it.cardInstanceId,
+                "containerId" to it.streamContainerId,
+                "actionPayload" to it.payload
+              )
+            )
+          }
+          submitButtonWithPayloadActionHandler = {
+            channel.invokeMethod(
+              "didTapSubmitButton",
+              mapOf(
+                "cardInstanceId" to it.cardInstanceId,
+                "containerId" to it.streamContainerId,
+                "actionPayload" to it.payload
+              )
+            )
+          }
+        }
       }
 
-      container.cardVotingOptions = when (votingOption) {
-        "none" -> EnumSet.of(VotingOption.None)
-        "useful" -> EnumSet.of(VotingOption.Useful)
-        "notUseful" -> EnumSet.of(VotingOption.NotUseful)
-        "both" -> EnumSet.of(VotingOption.Useful, VotingOption.NotUseful)
-        else -> EnumSet.of(VotingOption.None)
+      // Following: https://stackoverflow.com/a/22312916/1476228
+      view.viewTreeObserver?.addOnGlobalLayoutListener {
+        if (!isInitialised) {
+          container.start(fragment.requireView().id, fm)
+          channel.invokeMethod("viewLoaded", null)
+          isInitialised = true
+        }
+        onChangeSize()
       }
-
-      // Launch Colors
-      try {
-        container.configuration.launchBackgroundColor = (launchColors["background"] as Long).toInt()
-      } catch (e: Exception) {
-        flutterLogger.error(e)
-      }
-
-      try {
-        container.configuration.launchLoadingColor = (launchColors["loadingIndicator"] as Long).toInt()
-      } catch (e: Exception) {
-        flutterLogger.error(e)
-      }
-
-      try {
-        container.configuration.launchButtonColor = (launchColors["button"] as Long).toInt()
-      } catch (e: Exception) {
-        flutterLogger.error(e)
-      }
-
-      try {
-        container.configuration.launchTextColor = (launchColors["text"] as Long).toInt()
-      } catch (e: Exception) {
-        flutterLogger.error(e)
-      }
+      channel.setMethodCallHandler(::onMethodCall)
     }
 
-    // Following: https://stackoverflow.com/a/22312916/1476228
-    view.viewTreeObserver?.addOnGlobalLayoutListener {
-      container.start(fragment.requireView().id)
+
+  }
+
+  private fun cardDidRequestRuntimeVariables(
+    cards: List<AACCardInstance>,
+    done: (cardWithResolvedVariables: List<AACCardInstance>) -> Unit
+  ) {
+
+    if (cards.isEmpty()) {
+      done(cards)
+      return
     }
 
+    val cardsToResolveList = mutableListOf<Any>()
+    for (card in cards) {
+      val variables = mutableListOf<Any>()
+      for (variable in card.variables) {
+        variables.add(mapOf("name" to variable.name, "defaultValue" to variable.resolvedVariable))
+      }
+      cardsToResolveList.add(
+        mapOf(
+          "eventName" to card.eventName,
+          "lifecycleId" to card.lifecycleIdentifier,
+          "runtimeVariables" to variables
+        )
+      )
+    }
+
+    CoroutineScope(Dispatchers.Main + NonCancellable).launch {
+      channel.invokeMethod("requestRuntimeVariables",
+        mapOf("cardsToResolve" to cardsToResolveList),
+        object : MethodChannel.Result {
+          override fun success(result: Any?) {
+            result?.asListOfType<Map<String, *>>()?.let { resultMap ->
+              for (cardRaw in resultMap) {
+                val lifecycleId = cardRaw["lifecycleId"] as String
+                cardRaw["runtimeVariables"]?.asListOfType<Map<*, *>>()
+                  ?.let { runtimeVariablesRaw ->
+                    val matchedCards =
+                      cards.filter { it.lifecycleIdentifier == lifecycleId }
+                    for (matchedCard in matchedCards) {
+                      for (variableRaw in runtimeVariablesRaw) {
+                        variableRaw.asStringMapOfType<String>()?.let {
+                          matchedCard.resolveVariableWithNameAndValue(
+                            it["name"],
+                            it["runtimeValue"]
+                          )
+                        }
+                      }
+                    }
+                  }
+              }
+              done(cards)
+            }
+          }
+
+          override fun error(
+            errorCode: String,
+            errorMessage: String?,
+            errorDetails: Any?
+          ) {
+            AACFlutterLogger().error(Exception("Error occurred when resolving runtime variables."))
+            var error = ""
+            errorMessage?.let {
+              error += "errorMessage:$it "
+            }
+            (errorDetails as? String)?.let {
+              error += "errorDetails:$it "
+            }
+            AACFlutterLogger().error(Exception(error))
+            done(cards)
+          }
+
+          override fun notImplemented() {}
+        })
+    }
+  }
+
+  internal open fun buildContainer(delegate: AACFlutterSessionDelegate): AACStreamContainer =
+    AACStreamContainer.create(settings.containerId, delegate)
+
+  open fun onChangeSize() {
+  }
+
+  private fun applyFilter(argumentsRaw: Any) {
+    if (fragment.childFragmentManager.fragments.size == 0) return
+    (argumentsRaw as List<*>).asListOfType<Map<*, *>>()?.let { arguments ->
+      arguments[0].asStringMapOfType<String>()?.let { filter ->
+        filter["byCardInstanceId"]?.let {
+          container.filterCardsById(fragment.childFragmentManager, it)
+        }
+      }
+    }
+  }
+
+  private fun updateVariables() {
+    container.updateVariables(fragment.childFragmentManager)
+  }
+
+  @Suppress("UNUSED_PARAMETER")
+  private fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+    when (call.method) {
+      "applyFilter" -> applyFilter(call.arguments)
+      "updateVariables" -> updateVariables()
+      else -> {
+        result.error(
+          ERROR_CODE_UNSUPPORTED_CHANNEL_COMMAND,
+          "Unsupported command: ${call.method}",
+          "Failed to process channel command"
+        )
+      }
+    }
   }
 
   private suspend fun getAuthenticationToken(): String? {
     val deferred = CompletableDeferred<String?>()
+
     channel.invokeMethod("requestAuthenticationToken", null,
-        object : MethodChannel.Result {
-          override fun notImplemented() {}
+      object : MethodChannel.Result {
+        override fun notImplemented() {}
 
-          override fun error(errorCode: String?, errorMessage: String?,
-              errorDetails: Any?) {
-            deferred.complete(null)
-          }
+        override fun success(result: Any?) {
+          (result as? String)?.let {
+            deferred.complete(it)
+          } ?: deferred.complete(null)
+        }
 
-          override fun success(result: Any?) {
-            (result as? String)?.let {
-              deferred.complete(it)
-            } ?: deferred.complete(null)
-          }
-        })
+        override fun error(
+          errorCode: String,
+          errorMessage: String?,
+          errorDetails: Any?
+        ) {
+          deferred.complete(null)
+        }
+      })
     return deferred.await()
+  }
+
+  private fun cardEventHandler(event: AACCardEvent) {
+    when (event) {
+      AACCardEvent.Submitted -> "cardSubmitted"
+      AACCardEvent.Dismissed -> "cardDismissed"
+      AACCardEvent.Snoozed -> "cardSnoozed"
+      AACCardEvent.VotedUseful -> "cardVotedUseful"
+      AACCardEvent.VotedNotUseful -> "cardVotedNotUseful"
+      AACCardEvent.SubmitFailed -> "cardSubmitFailed"
+      AACCardEvent.DismissFailed -> "cardDismissFailed"
+      AACCardEvent.SnoozeFailed -> "cardSnoozeFailed"
+    }.let {
+      CoroutineScope(Dispatchers.Main + NonCancellable).launch {
+        channel.invokeMethod("didTriggerCardEvent", mapOf("cardEvent" to mapOf("kind" to it)))
+      }
+    }
+  }
+
+  companion object {
+
+    const val ERROR_CODE_UNSUPPORTED_CHANNEL_COMMAND = "01"
   }
 }

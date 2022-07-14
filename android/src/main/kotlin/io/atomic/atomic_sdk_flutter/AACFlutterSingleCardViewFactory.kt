@@ -10,9 +10,9 @@ import org.json.JSONObject
 import java.lang.Exception
 
 /** Factory that generates Atomic stream containers for use in Flutter. */
-class AACFlutterStreamContainerFactory(
-    private val binaryMessenger: BinaryMessenger) :
-    PlatformViewFactory(JSONMessageCodec.INSTANCE) {
+class AACFlutterSingleCardViewFactory(
+  private val binaryMessenger: BinaryMessenger) :
+  PlatformViewFactory(JSONMessageCodec.INSTANCE) {
 
   private val flutterLogger = AACFlutterLogger()
 
@@ -20,7 +20,7 @@ class AACFlutterStreamContainerFactory(
   override fun create(context: Context?, viewId: Int, args: Any?): PlatformView {
     try {
       val containerSettings = AACContainerSettings.create(args as JSONObject)
-      return AACFlutterStreamContainer(context!!, containerSettings, viewId, binaryMessenger)
+      return AACFlutterSingleCardView(context!!, containerSettings, viewId, binaryMessenger)
     } catch (e: Exception){
       flutterLogger.error(e)
       throw Exception("Cannot create AACStreamContainer. Check container parameters.")

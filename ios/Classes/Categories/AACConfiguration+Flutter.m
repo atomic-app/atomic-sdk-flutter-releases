@@ -7,6 +7,9 @@
 #import "AACConfiguration+Flutter.h"
 
 static NSDictionary *kAACFlutterVotingMapping = nil;
+static NSDictionary *kAACFlutterInterfaceStyleMapping = nil;
+static NSDictionary *kAACFlutterCustomStringMapping = nil;
+static NSDictionary *kAACFlutterPresentationStyleMapping = nil;
 static CGFloat kAACColourScale = 255.0f;
 
 @implementation AACConfiguration (Flutter)
@@ -20,12 +23,48 @@ static CGFloat kAACColourScale = 255.0f;
             @"useful": @(AACCardVotingOptionUseful),
             @"notUseful": @(AACCardVotingOptionNotUseful)
         };
+        kAACFlutterInterfaceStyleMapping = @{
+            @"automatic": @(AACConfigurationInterfaceStyleAutomatic),
+            @"light": @(AACConfigurationInterfaceStyleLight),
+            @"dark": @(AACConfigurationInterfaceStyleDark)
+        };
+        kAACFlutterCustomStringMapping = @{
+            @"votingUseful": @(AACCustomStringVotingUseful),
+            @"cardListTitle":@(AACCustomStringCardListTitle),
+            @"cardSnoozeTitle":@(AACCustomStringCardSnoozeTitle),
+            @"votingNotUseful":@(AACCustomStringVotingNotUseful),
+            @"allCardsCompleted":@(AACCustomStringAllCardsCompleted),
+            @"awaitingFirstCard":@(AACCustomStringAwaitingFirstCard),
+            @"votingFeedbackTitle":@(AACCustomStringVotingFeedbackTitle),
+            @"cardListFooterMessage":@(AACCustomStringCardListFooterMessage),
+            @"tryAgainTitle":@(AACCustomStringTryAgainTitle),
+            @"dataLoadFailedMessage":@(AACCustomStringDataLoadFailedMessage),
+            @"noInternetConnectionMessage":@(AACCustomStringNoInternetConnectionMessage),
+        };
+        kAACFlutterPresentationStyleMapping = @{
+            @"withoutButton": @(AACConfigurationPresentationStyleWithoutButton),
+            @"withActionButton": @(AACConfigurationPresentationStyleWithActionButton),
+            @"withContextualButton": @(AACConfigurationPresentationStyleWithContextualButton),
+        };
     });
     
     AACConfiguration *config = [[AACConfiguration alloc] init];
+    
+    id automaticallyLoadNextCard = dict[@"automaticallyLoadNextCard"];
+    if(automaticallyLoadNextCard != nil && [automaticallyLoadNextCard isKindOfClass:NSNumber.class]) {
+        AACSingleCardConfiguration *singleConfig = [[AACSingleCardConfiguration alloc] init];
+        singleConfig.automaticallyLoadNextCard = [(NSNumber*)automaticallyLoadNextCard boolValue];
+        config = singleConfig;
+    }
     id pollingInterval = dict[@"pollingInterval"];
     id cardVotingOptions = dict[@"cardVotingOptions"];
     id launchColors = dict[@"launchColors"];
+    id interfaceStyle = dict[@"interfaceStyle"];
+    id customStrings = dict[@"customStrings"];
+    id presentationStyle = dict[@"presentationStyle"];
+    id enabledUiElements = dict[@"enabledUiElements"];
+    id runtimeVariableTimeout = dict[@"runtimeVariableResolutionTimeout"];
+    id runtimeVariableAnalytics = dict[@"runtimeVariableAnalytics"];
    
     if(pollingInterval != nil && [pollingInterval isKindOfClass:NSNumber.class]) {
         config.cardListRefreshInterval = [pollingInterval doubleValue];
@@ -42,7 +81,46 @@ static CGFloat kAACColourScale = 255.0f;
         config.launchButtonColor = [self colourFromInt:launchColors[@"button"]];
         config.launchTextColor = [self colourFromInt:launchColors[@"text"]];
     }
+
+    if(interfaceStyle != nil && [interfaceStyle isKindOfClass:NSString.class]) {
+        config.interfaceStyle = [kAACFlutterInterfaceStyleMapping[interfaceStyle] intValue];
+    }
     
+    if(customStrings != nil && [customStrings isKindOfClass:NSDictionary.class]) {
+        for (NSString *key in customStrings) {
+            id value = customStrings[key];
+            if([value isKindOfClass:NSString.class]) {
+                AACCustomString customStringKey = [kAACFlutterCustomStringMapping[key] intValue];
+                [config setValue:value forCustomString:customStringKey];
+            }
+        }
+    }
+    
+    if(presentationStyle != nil && [presentationStyle isKindOfClass:NSString.class]) {
+        config.presentationStyle = [kAACFlutterPresentationStyleMapping[presentationStyle] intValue];
+    }
+    
+    if(enabledUiElements != nil && [enabledUiElements isKindOfClass:NSArray.class]) {
+        AACUIElement elements = AACUIElementNone;
+        for(NSString *elementName in enabledUiElements) {
+            if([elementName isEqualToString:@"cardListToast"]) {
+                elements |= AACUIElementCardListToast;
+            } else if([elementName isEqualToString:@"cardListFooterMessage"]) {
+                elements |= AACUIElementCardListFooterMessage;
+            } else if([elementName isEqualToString:@"cardListHeader"]) {
+                elements |= AACUIElementCardListHeader;
+            }
+        }
+        config.enabledUiElements = elements;
+    }
+    
+    if(runtimeVariableTimeout != nil && [runtimeVariableTimeout isKindOfClass:NSNumber.class]) {
+        config.runtimeVariableResolutionTimeout = [runtimeVariableTimeout doubleValue];
+    }
+    
+    if(runtimeVariableAnalytics != nil && [runtimeVariableAnalytics isKindOfClass:NSNumber.class]) {
+        config.features.runtimeVariableAnalytics = [(NSNumber*)runtimeVariableAnalytics boolValue];
+    }
     return config;
 }
 

@@ -12,7 +12,7 @@
 /**
  Base view for Atomic stream containers or single card views.
  */
-@interface AACFlutterView: NSObject <FlutterPlatformView, AACSessionDelegate>
+@interface AACFlutterView: NSObject <FlutterPlatformView, AACSessionDelegate, AACStreamContainerActionDelegate, AACCardEventDelegate>
 
 /**
  Method channel used to communicate from the native view back to Flutter.
@@ -48,5 +48,15 @@
  Returns the Flutter app's root view controller.
  */
 - (UIViewController*)rootViewController;
+
+/**
+ Applies the specified filter to the card list, showing only cards that match this filter.
+ */
+- (void)applyFilter:(AACCardFilter*)filter;
+
+/**
+ Instructs the stream container to check for new cards immediately.
+ */
+-(void)refresh;
 
 @end
