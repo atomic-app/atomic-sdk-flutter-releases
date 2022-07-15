@@ -12,7 +12,7 @@ Pod::Spec.new do |s|
   s.source_files = 'Classes/**/*'
   s.public_header_files = 'Classes/**/*.h'
   s.dependency 'Flutter'
-  s.dependency 'AtomicSDK'
+  s.dependency 'AtomicSDK', '0.25.1'
   s.platform = :ios, '10.0'
 
   # Flutter.framework does not contain a i386 slice.
