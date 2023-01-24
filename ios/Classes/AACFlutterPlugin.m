@@ -23,6 +23,9 @@ static NSDictionary *kAACFlutterFontStyle = nil;
 
 @property (nonatomic, strong) FlutterMethodChannel *channel;
 @property (nonatomic, strong) NSMutableDictionary *cardCountObservers;
+@property (nonatomic, strong) AACFlutterSessionDelegate *sessionDelegate;
+@property (nonatomic) NSTimeInterval authTokenRetryInterval;
+@property (nonatomic) NSTimeInterval authTokenExpiryInterval;
 
 @end
 
@@ -46,6 +49,8 @@ static NSDictionary *kAACFlutterFontStyle = nil;
     if(self) {
         self.channel = channel;
         self.cardCountObservers = [[NSMutableDictionary alloc] init];
+        self.authTokenRetryInterval = 0;
+        self.authTokenExpiryInterval = 60;
     }
     
     return self;
@@ -57,123 +62,137 @@ static NSDictionary *kAACFlutterFontStyle = nil;
         AACValidateArguments(call.arguments, @[ NSString.class ], result);
         [self setApiBaseUrl:call.arguments[0]];
         result(@(YES));
-    }
-    
-    if([call.method isEqual:@"initialise"]) {
+    } else if([call.method isEqual:@"initialise"]) {
         NSArray *types = @[ NSString.class, NSString.class ];
         AACValidateArguments(call.arguments, types, result);
         [self initialiseWithEnvironmentId:call.arguments[0] apiKey:call.arguments[1]];
         result(@(YES));
-    }
-    
-    if([call.method isEqual:@"setLoggingEnabled"]) {
+    } else if([call.method isEqual:@"enableDebugMode"]) {
         AACValidateArguments(call.arguments, @[ NSNumber.class ], result);
         NSNumber* numberValue = (NSNumber*)call.arguments[0];
-        [self setLoggingEnabled:numberValue.boolValue];
+        [self enableDebugMode:numberValue.intValue];
         result(@(YES));
-    }
-    
-    if([call.method isEqual:@"logout"]) {
-        AACValidateArguments(call.arguments, @[], result);
-        [self logout];
-        result(@(YES));
-    }
-    
-    if([call.method isEqual:@"registerDeviceForNotifications"]) {
+    } else if([call.method isEqual:@"onAuthTokenReceived"]) {
         NSArray *types = @[ NSString.class, NSString.class ];
         AACValidateArguments(call.arguments, types, result);
+        [self.sessionDelegate didReceiveAuthenticationToken:call.arguments[0] forIdentifier:call.arguments[1]];
+        result(@(YES));
+    } else if([call.method isEqual:@"logout"]) {
+        AACValidateArguments(call.arguments, @[], result);
+        [self logout:result];
+    } else if([call.method isEqual:@"registerDeviceForNotifications"]) {
+        NSArray *types = @[ NSString.class ];
+        AACValidateArguments(call.arguments, types, result);
         [self registerDeviceForNotifications:call.arguments[0]
-                         authenticationToken:call.arguments[1]
                                       result:result];
-    }
-    
-    if([call.method isEqual:@"registerStreamContainersForNotifications"]) {
-        NSArray *types = @[ NSArray.class, NSString.class ];
+    } else if([call.method isEqual:@"registerStreamContainersForNotifications"]) {
+        NSArray *types = @[ NSArray.class ];
         AACValidateArguments(call.arguments, types, result);
         [self registerStreamContainersForNotifications:call.arguments[0]
-                                                 token:call.arguments[1]
                                                 result:result];
-    }
-    
-    if([call.method isEqual:@"registerStreamContainersForNotificationsEnabled"]) {
-        NSArray *types = @[ NSString.class, NSString.class, NSNumber.class ];
+    } else if([call.method isEqual:@"registerStreamContainersForNotificationsEnabled"]) {
+        NSArray *types = @[ NSArray.class, NSNumber.class ];
         AACValidateArguments(call.arguments, types, result);
         BOOL enabled = [(NSNumber*)call.arguments[2] boolValue];
         [self registerStreamContainersForNotifications:call.arguments[0]
-                                                 token:call.arguments[1]
                                                enabled:enabled
                                                 result:result];
-    }
-    
-    if([call.method isEqual:@"deregisterDeviceForNotifications"]) {
+    } else if([call.method isEqual:@"deregisterDeviceForNotifications"]) {
         AACValidateArguments(call.arguments, @[], result);
         [self deregisterDeviceForNotifications:result];
-    }
-    
-    if([call.method isEqual:@"notificationFromPushPayload"]) {
+    } else if([call.method isEqual:@"notificationFromPushPayload"]) {
         AACValidateArguments(call.arguments, @[ NSDictionary.class ], result);
         [self notificationFromPushPayload:call.arguments[0]
                                    result:result];
-    }
-    
-    // Card count
-    if([call.method isEqual:@"observeCardCount"]) {
-        NSArray *types = @[ NSString.class, NSNumber.class, NSString.class ];
+    } else if([call.method isEqual:@"observeCardCount"]) {
+        NSArray *types = @[ NSString.class, NSNumber.class ];
         AACValidateArguments(call.arguments, types, result);
         [self observeCardCount:call.arguments[0]
              atPollingInterval:call.arguments[1]
-                 withAuthToken:call.arguments[2]
                         result:result];
-    }
-    
-    if([call.method isEqual:@"stopObservingCardCount"]) {
+    } else if([call.method isEqual:@"stopObservingCardCount"]) {
         NSArray *types = @[ NSString.class ];
         AACValidateArguments(call.arguments, types, result);
         [self stopObservingCardCount:call.arguments[0]
                               result:result];
-    }
-    
-    if([call.method isEqual:@"trackPushNotificationReceived"]) {
-        NSArray *types = @[ NSDictionary.class, NSString.class ];
+    } else if([call.method isEqual:@"trackPushNotificationReceived"]) {
+        NSArray *types = @[ NSDictionary.class ];
         AACValidateArguments(call.arguments, types, result);
         [self trackPushNotificationReceived:call.arguments[0]
-                              withAuthToken:call.arguments[1]
                                      result:result];
-    }
-    
-    if([call.method isEqual:@"sendEvent"]) {
-        NSArray *types = @[ NSDictionary.class, NSString.class ];
+    } else if([call.method isEqual:@"sendEvent"]) {
+        NSArray *types = @[ NSDictionary.class ];
         AACValidateArguments(call.arguments, types, result);
         [self sendEvent:call.arguments[0]
-          withAuthToken:call.arguments[1]
                  result:result];
-    }
-    
-    if([call.method isEqual:@"requestCardCount"]) {
-        NSArray *types = @[ NSString.class, NSString.class ];
+    } else if([call.method isEqual:@"requestCardCount"]) {
+        NSArray *types = @[ NSString.class ];
         AACValidateArguments(call.arguments, types, result);
         [self requestCardCountForStreamContainerWithIdentifier:call.arguments[0]
-                                                 withAuthToken:call.arguments[1]
                                                         result:result];
-    }
-    
-    if([call.method isEqual:@"userMetrics"]) {
-        NSArray *types = @[ NSString.class, NSString.class ];
+    } else if([call.method isEqual:@"userMetrics"]) {
+        NSArray *types = @[ NSString.class ];
         AACValidateArguments(call.arguments, types, result);
         [self userMetricsForStreamContainerWithIdentifier:call.arguments[0]
-                                            withAuthToken:call.arguments[1]
                                                    result:result];
-    }
-    
-    if([call.method isEqual:@"registerEmbeddedFonts"]) {
+    } else if([call.method isEqual:@"registerEmbeddedFonts"]) {
         NSArray *types = @[ NSArray.class ];
         AACValidateArguments(call.arguments, types, result);
         [self registerEmbeddedFonts:call.arguments[0]];
+        result(@(YES));
+    } else if([call.method isEqual:@"setApiProtocol"]) {
+        NSArray *types = @[ NSString.class ];
+        AACValidateArguments(call.arguments, types, result);
+        [self setApiProtocol:call.arguments[0]];
+        result(@(YES));
+    } else if([call.method isEqual:@"setSessionDelegateRetryInterval"]) {
+        NSArray *types = @[ NSNumber.class];
+        AACValidateArguments(call.arguments, types, result);
+        [self setSessionDelegateRetryInterval:call.arguments[0]];
+        result(@(YES));
+    } else if([call.method isEqual:@"setSessionDelegateExpiryInterval"]) {
+        NSArray *types = @[ NSNumber.class];
+        AACValidateArguments(call.arguments, types, result);
+        [self setSessionDelegateExpiryInterval:call.arguments[0]];
+        result(@(YES));
+    } else {
+        NSString *message = [NSString stringWithFormat:@"Method call (%@) not implemented.", call.method];
+        [AACFlutterLogger warn:message];
         result(@(YES));
     }
 }
 
 #pragma mark - SDK method implementations
+
+-(void)setSessionDelegateExpiryInterval:(NSNumber *)expiryInterval {
+    if(expiryInterval.doubleValue < 0) {
+        return;
+    }
+    self.authTokenExpiryInterval = expiryInterval.doubleValue;
+    if(self.sessionDelegate != nil) {
+        self.sessionDelegate.expiryIntervalFromFlutter = expiryInterval.doubleValue;
+        [AACSession setSessionDelegate:self.sessionDelegate];
+    }
+}
+
+-(void)setSessionDelegateRetryInterval:(NSNumber *)retryInterval {
+    if(retryInterval.doubleValue < 0) {
+        return;
+    }
+    self.authTokenRetryInterval = retryInterval.doubleValue;
+    if(self.sessionDelegate != nil) {
+        self.sessionDelegate.retryIntervalFromFlutter = retryInterval.doubleValue;
+        [AACSession setSessionDelegate:self.sessionDelegate];
+    }
+}
+
+-(void)setApiProtocol:(NSString *)protocolName {
+    if([protocolName isEqualToString:@"http"]) {
+        [AACSession setApiProtocol:AACApiProtocolHttp];
+    } else if([protocolName isEqualToString:@"webSockets"]){
+        [AACSession setApiProtocol:AACApiProtocolWebSockets];
+    }
+}
 
 -(void)registerEmbeddedFonts:(NSArray*)fontList {
     NSDictionary *dicFontWeight = @{
@@ -198,16 +217,13 @@ static NSDictionary *kAACFlutterFontStyle = nil;
 }
 
 -(void)userMetricsForStreamContainerWithIdentifier:(NSString*)containerId
-                                     withAuthToken:(NSString*)authToken
                                             result:(FlutterResult)result {
-    AACFlutterSessionDelegate *sessionDelegate = [[AACFlutterSessionDelegate alloc] init];
-    sessionDelegate.authenticationToken = authToken;
-    [AACSession userMetricsWithSessionDelegate:sessionDelegate completionHandler:^(AACUserMetrics * _Nullable response, NSError * _Nullable error) {
+    [AACSession userMetricsWithCompletionHandler:^(AACUserMetrics *response, NSError *error) {
         if(error == nil) {
             NSInteger totalCards = 0;
             NSInteger unseenCards = 0;
             
-            if([containerId isEqualToString:@""]) {
+            if(containerId.length == 0) {
                 totalCards = [response totalCards];
                 unseenCards = [response unseenCards];
             } else {
@@ -229,11 +245,8 @@ static NSDictionary *kAACFlutterFontStyle = nil;
 }
 
 -(void)requestCardCountForStreamContainerWithIdentifier:(NSString*)containerId
-                                          withAuthToken:(NSString*)authToken
                                                  result:(FlutterResult)result {
-    AACFlutterSessionDelegate *sessionDelegate = [[AACFlutterSessionDelegate alloc] init];
-    sessionDelegate.authenticationToken = authToken;
-    [AACSession requestCardCountForStreamContainerWithIdentifier:containerId sessionDelegate:sessionDelegate handler:^(NSNumber * _Nullable cardCount) {
+    [AACSession requestCardCountForStreamContainerWithIdentifier:containerId handler:^(NSNumber *cardCount) {
         if(cardCount != nil) {
             result(@([cardCount intValue]));
         } else {
@@ -246,10 +259,7 @@ static NSDictionary *kAACFlutterFontStyle = nil;
 }
 
 -(void)sendEvent:(NSDictionary*)payload
-   withAuthToken:(NSString*)authToken
           result:(FlutterResult)result {
-    AACFlutterSessionDelegate * sessionDelegate = [[AACFlutterSessionDelegate alloc] init];
-    sessionDelegate.authenticationToken = authToken;
     AACEventPayload *eventPayload = [[AACEventPayload alloc] initWithName:payload[@"name"]];
     eventPayload.lifecycleId = payload[@"lifecycleId"];
     id dicValue = payload[@"detail"];
@@ -264,7 +274,8 @@ static NSDictionary *kAACFlutterFontStyle = nil;
     if([dicValue isKindOfClass:NSDictionary.class] == YES) {
         eventPayload.notificationDetail = (NSDictionary*)dicValue;
     }
-    [AACSession sendEvent:eventPayload withSessionDelegate:sessionDelegate completionHandler:^(AACEventResponse * _Nullable response, NSError * _Nullable error) {
+    
+    [AACSession sendEvent:eventPayload withCompletionHandler:^(AACEventResponse *response, NSError *error) {
         if(error == nil) {
             NSMutableArray *processedEvents = [[NSMutableArray alloc] init];
             for(AACProcessedEvent *event in response.processedEvents) {
@@ -279,7 +290,7 @@ static NSDictionary *kAACFlutterFontStyle = nil;
                 @"processedEvents": processedEvents
             });
         } else {
-            [AACFlutterLogger log:@"Failed to send event payload. %@", error];
+            [AACFlutterLogger error:@"Failed to send event payload. %@", error];
             NSString *errorCode = [NSString stringWithFormat:@"%@ (error code %@)", error.domain, @(error.code)];
             FlutterError *flutterError = [FlutterError errorWithCode:errorCode message:error.localizedDescription details:nil];
             result(flutterError);
@@ -293,111 +304,136 @@ static NSDictionary *kAACFlutterFontStyle = nil;
     if(parsedUrl) {
         [AACSession setApiBaseUrl:parsedUrl];
     } else {
-        [AACFlutterLogger log:@"Failed to set API base URL: `%@` is not a valid URL.", url];
+        [AACFlutterLogger error:@"Failed to set API base URL: `%@` is not a valid URL.", url];
     }
 }
 
 - (void)initialiseWithEnvironmentId:(NSString*)envId apiKey:(NSString*)apiKey {
     [AACSession initialiseWithEnvironmentId:envId apiKey:apiKey];
+    if(self.sessionDelegate == nil) {
+        self.sessionDelegate = [[AACFlutterSessionDelegate alloc] init];
+        
+        __weak typeof(self) weakSelf = self;
+        self.sessionDelegate.authTokenCallback = ^(NSString *identifier) {
+          if(weakSelf != nil) {
+              [weakSelf.channel invokeMethod:@"authTokenRequested" arguments:@{
+                  @"identifier": identifier
+              }];
+          }
+        };
+        self.sessionDelegate.retryIntervalFromFlutter = self.authTokenRetryInterval;
+        self.sessionDelegate.expiryIntervalFromFlutter = self.authTokenExpiryInterval;
+        [AACSession setSessionDelegate:self.sessionDelegate];
+      }
 }
 
-- (void)setLoggingEnabled:(BOOL)enabled {
-    [AACSession setLoggingEnabled:enabled];
-    [AACFlutterLogger setLoggingEnabled:enabled];
+- (void)enableDebugMode:(NSInteger)level {
+    [AACSession enableDebugMode:level];
+    [AACFlutterLogger setLoggingEnabled:level > 0];
 }
 
-- (void)logout {
-    [AACSession logout];
+- (FlutterError *)generateFlutterErrorWithError:(NSError *)error {
+    NSString *errorCode = [NSString stringWithFormat:@"%@ (error code %@)", error.domain, @(error.code)];
+    NSError *underlyingError = (NSError*)error.userInfo[NSUnderlyingErrorKey];
+    NSString *underlyingErrorDescription;
+    if(underlyingError != nil) {
+        underlyingErrorDescription = [NSString stringWithFormat:@"Underlying error: %@", underlyingError.localizedDescription];
+    }
+    return [FlutterError errorWithCode:errorCode message:error.localizedDescription details:underlyingErrorDescription];
+}
+
+- (void)logout:(FlutterResult)result {
+    [AACSession logout:^(NSError * error) {
+        if(error != nil) {
+            [AACFlutterLogger error:@"Errors when logging out. %@", error];
+            result([self generateFlutterErrorWithError:error]);
+        } else {
+            result(@(YES));
+        }
+    }];
 }
 
 - (void)trackPushNotificationReceived:(NSDictionary*)payload
-                        withAuthToken:(NSString*)authToken
                                result:(FlutterResult)result {
-    AACFlutterSessionDelegate * sessionDelegate = [[AACFlutterSessionDelegate alloc] init];
-    sessionDelegate.authenticationToken = authToken;
-    [AACSession trackPushNotificationReceived:payload withSessionDelegate:sessionDelegate completionHandler:^(NSError * _Nullable error) {
+    [AACSession trackPushNotificationReceived:payload completionHandler:^(NSError * _Nullable error) {
         if(error == nil) {
             result(@(YES));
         } else {
             [AACFlutterLogger log:@"Failed to track push notification receipt. The push notification payload may not be for an Atomic notification. %@", error];
-            NSString *errorCode = [NSString stringWithFormat:@"%@ (error code %@)", error.domain, @(error.code)];
-            FlutterError *flutterError = [FlutterError errorWithCode:errorCode message:error.localizedDescription details:nil];
-            result(flutterError);
+            result([self generateFlutterErrorWithError:error]);
         }
     }];
 }
 
 - (void)registerStreamContainersForNotifications:(NSArray*)containerIds
-                                           token:(NSString*)authToken
                                           result:(FlutterResult)result {
-    AACFlutterSessionDelegate *sessionDelegate = [[AACFlutterSessionDelegate alloc] init];
-    sessionDelegate.authenticationToken = authToken;
-    
-    [AACSession registerStreamContainersForPushNotifications:containerIds sessionDelegate:sessionDelegate completionHandler:^(NSError * _Nullable error) {
+    [AACSession registerStreamContainersForPushNotifications:containerIds completionHandler:^(NSError *error) {
         if(error == nil) {
             result(@(YES));
         } else {
             if(containerIds.count > 0) {
-                [AACFlutterLogger log:@"Failed to register push notifications for stream containers %@ etc. %@", containerIds[0], error];
+                [AACFlutterLogger error:@"Failed to register push notifications for stream containers %@ etc. %@", containerIds[0], error];
             } else {
-                [AACFlutterLogger log:@"Failed to register push notifications for stream containers. %@", error];
+                [AACFlutterLogger error:@"Failed to register push notifications for stream containers. %@", error];
             }
-            NSString *errorCode = [NSString stringWithFormat:@"%@ (error code %@)", error.domain, @(error.code)];
-            FlutterError *flutterError = [FlutterError errorWithCode:errorCode message:error.localizedDescription details:nil];
-            result(flutterError);
+            result([self generateFlutterErrorWithError:error]);
         }
     }];
 }
 
 - (void)registerStreamContainersForNotifications:(NSArray*)containerIds
-                                           token:(NSString*)authToken
                                          enabled:(BOOL)notificationsEnabled
                                           result:(FlutterResult)result {
-    AACFlutterSessionDelegate *sessionDelegate = [[AACFlutterSessionDelegate alloc] init];
-    sessionDelegate.authenticationToken = authToken;
     
     [AACSession registerStreamContainersForPushNotifications:containerIds
-                                             sessionDelegate:sessionDelegate
                                         notificationsEnabled:notificationsEnabled
-                                           completionHandler:^(NSError * _Nullable error) {
+                                           completionHandler:^(NSError *error) {
         if(error == nil) {
             result(@(YES));
         } else {
             if(containerIds.count > 0) {
-                [AACFlutterLogger log:@"Failed to register push notifications for stream containers %@ etc. %@", containerIds[0], error];
+                [AACFlutterLogger error:@"Failed to register push notifications for stream containers %@ etc. %@", containerIds[0], error];
             } else {
-                [AACFlutterLogger log:@"Failed to register push notifications for stream containers. %@", error];
+                [AACFlutterLogger error:@"Failed to register push notifications for stream containers. %@", error];
             }
-            NSString *errorCode = [NSString stringWithFormat:@"%@ (error code %@)", error.domain, @(error.code)];
-            FlutterError *flutterError = [FlutterError errorWithCode:errorCode message:error.localizedDescription details:nil];
-            result(flutterError);
+            result([self generateFlutterErrorWithError:error]);
         }
     }];
 }
 
 - (void)registerDeviceForNotifications:(NSString*)pushToken
-                   authenticationToken:(NSString*)authToken
                                 result:(FlutterResult)result {
     NSData *tokenData = [pushToken aacFlutter_dataFromHexString];
     
     if(tokenData == nil) {
-        [AACFlutterLogger log:@"Empty or invalid token provided when registering for push notifications."];
+        [AACFlutterLogger error:@"Empty or invalid token provided when registering for push notifications."];
         return;
     }
     
-    AACFlutterSessionDelegate *sessionDelegate = [[AACFlutterSessionDelegate alloc] init];
-    sessionDelegate.authenticationToken = authToken;
-    
-    [AACSession registerDeviceForNotifications:tokenData withSessionDelegate:sessionDelegate completionHandler:^(NSError * _Nullable error) {
-        if(error == nil) {
-            result(@(YES));
-        } else {
-            [AACFlutterLogger log:@"Failed to register push notifications for the device. %@", error];
-            NSString *errorCode = [NSString stringWithFormat:@"%@ (error code %@)", error.domain, @(error.code)];
-            FlutterError *flutterError = [FlutterError errorWithCode:errorCode message:error.localizedDescription details:nil];
+    /// If the Flutter host app requests push notification, the Flutter plugin framework could
+    /// call this method before any other initialisation codes being executed. This is not like
+    /// in iOS app where registration for notification is manually triggered by calling
+    /// [[UIApplication sharedApplication] registerForRemoteNotifications].
+    /// Therefore we need a special treatment to handle exceptions from none-initialised session delegate.
+    @try {
+        [AACSession registerDeviceForNotifications:tokenData completionHandler:^(NSError *error) {
+            if(error == nil) {
+                result(@(YES));
+            } else {
+                result([self generateFlutterErrorWithError:error]);
+            }
+        }];
+    } @catch (NSException *exception) {
+        if([exception.name isEqualToString:@"NSInternalInconsistencyException"]) {
+            [AACFlutterLogger warn:@"Failed to register push notifications for the device because it's called before initialisation."];
+            FlutterError *flutterError = [FlutterError errorWithCode:@"Failed to register push notifications for the device."
+                                                             message:@"Called before SDK initialisation."
+                                                             details:nil];
             result(flutterError);
+        } else {
+            @throw exception;
         }
-    }];
+    }
 }
 
 - (void)deregisterDeviceForNotifications:(FlutterResult)result {
@@ -405,10 +441,8 @@ static NSDictionary *kAACFlutterFontStyle = nil;
         if(error == nil) {
             result(@(YES));
         } else {
-            [AACFlutterLogger log:@"Failed to deregister device for push notifications. %@", error];
-            NSString *errorCode = [NSString stringWithFormat:@"%@ (error code %@)", error.domain, @(error.code)];
-            FlutterError *flutterError = [FlutterError errorWithCode:errorCode message:error.localizedDescription details:nil];
-            result(flutterError);
+            [AACFlutterLogger error:@"Failed to deregister device for push notifications. %@", error];
+            result([self generateFlutterErrorWithError:error]);
         }
     }];
 }
@@ -429,13 +463,8 @@ static NSDictionary *kAACFlutterFontStyle = nil;
 
 - (void)observeCardCount:(NSString*)containerId
        atPollingInterval:(NSNumber*)interval
-           withAuthToken:(NSString*)authToken
                   result:(FlutterResult)result {
     AACFlutterCardCountObserver *observer = [[AACFlutterCardCountObserver alloc] init];
-    
-    AACFlutterSessionDelegate *sessionDelegate = [[AACFlutterSessionDelegate alloc] init];
-    sessionDelegate.authenticationToken = authToken;
-    observer.sessionDelegate = sessionDelegate;
     
     NSString *identifier = [NSString stringWithFormat:@"AACFlutterCardCountObserver-%@", @(kAACFlutterCardCountObserverId++)];
     observer.identifier = identifier;
@@ -443,7 +472,6 @@ static NSDictionary *kAACFlutterFontStyle = nil;
     dispatch_async(dispatch_get_main_queue(), ^{
         id<NSObject> token = [AACSession observeCardCountForStreamContainerWithIdentifier:containerId
                                                                                  interval:interval.doubleValue
-                                                                          sessionDelegate:sessionDelegate
                                                                                   handler:^(NSNumber *cardCount) {
             if(cardCount != nil) {
                 [self.channel invokeMethod:@"cardCountChanged" arguments:@{

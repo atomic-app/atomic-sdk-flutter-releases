@@ -83,7 +83,6 @@
     
     self.singleCardView = [[AACFlutterSingleCardViewImpl alloc] initWithFrame:frame
                                                           containerIdentifier:containerId
-                                                              sessionDelegate:self
                                                                 configuration:configuration];
     
     self.singleCardView.translatesAutoresizingMaskIntoConstraints = NO;

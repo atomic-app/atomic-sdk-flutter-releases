@@ -333,10 +333,31 @@ class AACStreamContainerLaunchColors {
 /**
  * Extend this class to provide a session delegate that supplies authentication tokens
  * when requested by the SDK.
+ * The method [authToken] must be implemented, and is used to supply an authentication token to the SDK.
+ * If you do not supply a valid authentication token, API requests within the SDK will fail.
  */
 abstract class AACSessionDelegate {
-  Future<String> authToken();
+  /**
+   * Called when the SDK has requested an authentication token.
+   */
+  Future<String> authToken ();
+}
 
+/**
+ * Implements logic to resolve runtime variables on cards, when requested by the SDK.
+ *
+ */
+abstract class AACRuntimeVariableDelegate {
+  /**
+      Delegate method that can be implemented when one or more cards include runtime variables.
+      If the card includes runtime variables to be resolved, the SDK will call this method to ask that you resolve them.
+      If this method is not implemented, or you do not resolve a given variable, the default values for that variable
+      will be used (as defined in the Atomic Workbench).
+
+      Variables are resolved on each card by calling `resolveRuntimeVariableWithName:value:`.
+
+      - [cardInstances] An array of cards containing runtime variables that need to be resolved.
+   */
   Future<List<AACCardInstance>?> requestRuntimeVariables(List<AACCardInstance> cardInstances) async {
     return null;
   }
@@ -407,12 +428,12 @@ abstract class AACStreamContainerActionDelegate {
 
 /**
  * Creates an Atomic stream container, rendering a list of cards.
- * You must supply a `containerId`, `configuration` object and `sessionDelegate`.
+ * You must supply a `containerId` and `configuration` object.
  */
 class AACStreamContainer extends StatefulWidget {
   final String containerId;
   final AACStreamContainerConfiguration configuration;
-  final AACSessionDelegate sessionDelegate;
+  final AACRuntimeVariableDelegate? runtimeVariableDelegate;
   final AACStreamContainerActionDelegate? actionDelegate;
   final AACCardEventDelegate? eventDelegate;
   final Function(AACStreamContainerState containerState)? onViewLoaded;
@@ -421,7 +442,7 @@ class AACStreamContainer extends StatefulWidget {
       {Key? key,
       required this.containerId,
       required this.configuration,
-      required this.sessionDelegate,
+      this.runtimeVariableDelegate,
       this.actionDelegate,
       this.eventDelegate,
       this.onViewLoaded})
@@ -501,9 +522,6 @@ class AACStreamContainerState extends State<AACStreamContainer> {
         /// Indicate that the native container has been completely loaded
         widget.onViewLoaded?.call(this);
         break;
-      case 'requestAuthenticationToken':
-        String token = await widget.sessionDelegate.authToken();
-        return token;
       case 'didTapActionButton':
         widget.actionDelegate?.didTapActionButton();
         break;
@@ -532,7 +550,7 @@ class AACStreamContainerState extends State<AACStreamContainer> {
           AACCardInstance card = AACCardInstance.fromJson(cardJson);
           cards.add(card);
         }
-        List<AACCardInstance>? results = await widget.sessionDelegate.requestRuntimeVariables(cards);
+        List<AACCardInstance>? results = await widget.runtimeVariableDelegate?.requestRuntimeVariables(cards);
         if (results != null) {
           return results.map((e) => e.toJson()).toList();
         } else {

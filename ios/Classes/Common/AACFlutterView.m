@@ -33,6 +33,7 @@ NSString *_Nonnull const kAACErrorCodeUnsupportedChannelCommand = @"01";
             configuration = [AACConfiguration fromFlutterDictionary:dict[@"configuration"] ?: @{}];
             configuration.actionDelegate = self;
             configuration.cardEventDelegate = self;
+            configuration.runtimeVariableDelegate = self;
             containerId = args[@"containerId"];
         }
         
@@ -110,16 +111,7 @@ NSString *_Nonnull const kAACErrorCodeUnsupportedChannelCommand = @"01";
     _channel = nil;
 }
 
-#pragma mark - AACSessionDelegate
-- (void)cardSessionDidRequestAuthenticationTokenWithHandler:(AACSessionAuthenticationTokenHandler)handler {
-    [self.channel invokeMethod:@"requestAuthenticationToken" arguments:nil result:^(id result) {
-        if([result isKindOfClass:NSString.class]) {
-            handler(result);
-        } else {
-            handler(nil);
-        }
-    }];
-}
+#pragma mark - AACRuntimeVariableDelegate
 
 - (void)cardSessionDidRequestRuntimeVariables:(NSArray<AACCardInstance *> *)cardsToResolve completionHandler:(AACSessionRuntimeVariablesHandler)completionHandler {
     if(cardsToResolve.count == 0) { return; }

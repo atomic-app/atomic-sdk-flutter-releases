@@ -4,7 +4,6 @@ import android.content.Context
 import android.view.View
 import com.atomic.actioncards.sdk.AACSingleCardView
 import com.atomic.actioncards.sdk.AACStreamContainer
-import io.atomic.atomic_sdk_flutter.helpers.AACFlutterSessionDelegate
 import io.atomic.atomic_sdk_flutter.model.AACContainerSettings
 import io.atomic.atomic_sdk_flutter.utils.MeasureUtils
 import io.flutter.plugin.common.BinaryMessenger
@@ -23,8 +22,8 @@ internal class AACFlutterSingleCardView(
   override val channel: MethodChannel = MethodChannel(binaryMessenger,
     "io.atomic.sdk.singleCard/${viewId}")
 
-  override fun buildContainer(delegate: AACFlutterSessionDelegate): AACStreamContainer =
-    AACSingleCardView.create(settings.containerId, delegate)
+  override fun buildContainer(): AACStreamContainer =
+    AACSingleCardView.create(settings.containerId)
 
   private var height: Int = 0
   private var width: Int = 0
@@ -36,10 +35,10 @@ internal class AACFlutterSingleCardView(
         MeasureUtils.pxToDp(wrapper.context.resources.displayMetrics.density, wrapper.height)
       val nw =
         MeasureUtils.pxToDp(wrapper.context.resources.displayMetrics.density, wrapper.width)
-      if (nh != height || nw != nw) {
+      if (nh != height || nw != width) {
         height = nh
         width = nw
-        val sizes = mapOf("height" to height, "width" to height)
+        val sizes = mapOf("height" to height, "width" to width)
         channel.invokeMethod("sizeChanged", sizes)
       }
     }

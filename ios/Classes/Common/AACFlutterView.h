@@ -12,7 +12,7 @@
 /**
  Base view for Atomic stream containers or single card views.
  */
-@interface AACFlutterView: NSObject <FlutterPlatformView, AACSessionDelegate, AACStreamContainerActionDelegate, AACCardEventDelegate>
+@interface AACFlutterView: NSObject <FlutterPlatformView, AACStreamContainerActionDelegate, AACCardEventDelegate, AACRuntimeVariableDelegate>
 
 /**
  Method channel used to communicate from the native view back to Flutter.

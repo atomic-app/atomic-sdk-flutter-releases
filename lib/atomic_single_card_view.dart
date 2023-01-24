@@ -9,12 +9,12 @@ import 'atomic_stream_container.dart';
 
 /**
  * Creates an Atomic single card view, rendering the most recent card in the container.
- * You must supply a `containerId`, `configuration` object and `sessionDelegate`.
+ * You must supply a `containerId` and `configuration` object.
  */
 class AACSingleCardView extends StatefulWidget {
   final String containerId;
   final AACSingleCardConfiguration configuration;
-  final AACSessionDelegate sessionDelegate;
+  final AACRuntimeVariableDelegate? runtimeVariableDelegate;
   final Function(double width, double height)? onSizeChanged;
   final AACStreamContainerActionDelegate? actionDelegate;
   final AACCardEventDelegate? eventDelegate;
@@ -24,7 +24,7 @@ class AACSingleCardView extends StatefulWidget {
       {Key? key,
         required this.containerId,
         required this.configuration,
-        required this.sessionDelegate,
+        this.runtimeVariableDelegate,
         this.actionDelegate,
         this.eventDelegate,
         this.onSizeChanged,
@@ -111,9 +111,6 @@ class AACSingleCardViewState extends State<AACSingleCardView> {
       /// Indicate that the native container has been completely loaded
         widget.onViewLoaded?.call(this);
         break;
-      case 'requestAuthenticationToken':
-        String token = await widget.sessionDelegate.authToken();
-        return token;
       case 'sizeChanged':
         double width = call.arguments['width'].toDouble();
         double height = call.arguments['height'].toDouble();
@@ -147,7 +144,7 @@ class AACSingleCardViewState extends State<AACSingleCardView> {
           AACCardInstance card = AACCardInstance.fromJson(cardJson);
           cards.add(card);
         }
-        List<AACCardInstance>? results = await widget.sessionDelegate.requestRuntimeVariables(cards);
+        List<AACCardInstance>? results = await widget.runtimeVariableDelegate?.requestRuntimeVariables(cards);
         if (results != null) {
           return results.map((e) => e.toJson()).toList();
         } else {

@@ -7,7 +7,6 @@ import com.atomic.actioncards.feed.data.model.AACCardInstance
 import com.atomic.actioncards.sdk.AACStreamContainer
 import com.atomic.actioncards.sdk.PresentationMode
 import com.atomic.actioncards.sdk.VotingOption
-import io.atomic.atomic_sdk_flutter.helpers.AACFlutterSessionDelegate
 import io.atomic.atomic_sdk_flutter.helpers.AACFlutterWrapperFragment
 import io.atomic.atomic_sdk_flutter.model.AACContainerSettings
 import io.atomic.atomic_sdk_flutter.utils.asListOfType
@@ -60,9 +59,7 @@ internal open class AACFlutterStreamContainer(
      * when creating the container, rather than requesting it on-demand.
      */
     CoroutineScope(Dispatchers.Main + NonCancellable).launch {
-      val token = getAuthenticationToken()
-      val delegate = AACFlutterSessionDelegate(token)
-      container = buildContainer(delegate)
+      container = buildContainer()
 
       with(container) {
         cardEventHandler = ::cardEventHandler
@@ -248,8 +245,8 @@ internal open class AACFlutterStreamContainer(
     }
   }
 
-  internal open fun buildContainer(delegate: AACFlutterSessionDelegate): AACStreamContainer =
-    AACStreamContainer.create(settings.containerId, delegate)
+  internal open fun buildContainer(): AACStreamContainer =
+    AACStreamContainer.create(settings.containerId)
 
   open fun onChangeSize() {
   }
@@ -282,30 +279,6 @@ internal open class AACFlutterStreamContainer(
         )
       }
     }
-  }
-
-  private suspend fun getAuthenticationToken(): String? {
-    val deferred = CompletableDeferred<String?>()
-
-    channel.invokeMethod("requestAuthenticationToken", null,
-      object : MethodChannel.Result {
-        override fun notImplemented() {}
-
-        override fun success(result: Any?) {
-          (result as? String)?.let {
-            deferred.complete(it)
-          } ?: deferred.complete(null)
-        }
-
-        override fun error(
-          errorCode: String,
-          errorMessage: String?,
-          errorDetails: Any?
-        ) {
-          deferred.complete(null)
-        }
-      })
-    return deferred.await()
   }
 
   private fun cardEventHandler(event: AACCardEvent) {

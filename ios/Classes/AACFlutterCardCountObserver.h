@@ -18,7 +18,4 @@
 /// Native object used when observing card counts, used when interacting with the iOS SDK.
 @property (nonatomic, strong) id<NSObject> token;
 
-/// Session delegate that provides an authentication token for retrieving card count.
-@property (nonatomic, strong) AACFlutterSessionDelegate *sessionDelegate;
-
 @end

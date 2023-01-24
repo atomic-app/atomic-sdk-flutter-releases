@@ -18,7 +18,28 @@
 
 /**
  Sends a log message to the system log, if logging is enabled using the above method.
+ 
+ @param format An NSString format with variable, optional format parameters following it.
  */
 + (void)log:(NSString*)format, ...;
+
+/**
+ Logs an error message using the Unified Logging Framework, if logging is enabled using the above method.
+ 
+ Use this method to send out a message indicating a failed situation or action.
+ 
+ @param format An NSString format with variable, optional format parameters following it.
+ */
++ (void)error:(NSString*)format, ...;
+
+/**
+ Logs a warning message using the Unified Logging Framework, if logging is enabled using the above method.
+ 
+ Use this method to send out a message indicating a situation or event that needs to be
+ noticed and examined but is not a failure.
+ 
+ @param format An NSString format with variable, optional format parameters following it.
+ */
++ (void)warn:(NSString*)format, ...;
 
 @end

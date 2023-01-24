@@ -51,8 +51,7 @@
     }
     
     AACStreamContainerViewController *vc = [[AACStreamContainerViewController alloc] initWithIdentifier:containerId
-                                                                        sessionDelegate:self
-                                                                          configuration:configuration];
+                                                                                          configuration:configuration];
     self.streamContainerViewController = vc;
     self.containerViewController = [[AACFlutterContainerViewController alloc] init];
     

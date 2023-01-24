@@ -28,21 +28,46 @@
     [self sharedLogger].loggingEnabled = enabled;
 }
 
++ (void)error:(NSString*)format, ... {
+    if([self sharedLogger].loggingEnabled == NO) {
+        return;
+    }
+    
+    NSString *newFormat = [[NSString alloc] initWithFormat:@"❌ AtomicSDK Flutter %@", format];
+    
+    va_list args;
+    va_start(args, format);
+    
+    os_log(OS_LOG_DEFAULT, "%{public}s", [[[NSString alloc] initWithFormat:newFormat arguments:args] cStringUsingEncoding:NSUTF8StringEncoding]);
+    
+    va_end(args);
+}
+
++ (void)warn:(NSString*)format, ... {
+    if([self sharedLogger].loggingEnabled == NO) {
+        return;
+    }
+    
+    NSString *newFormat = [[NSString alloc] initWithFormat:@"⚠️ AtomicSDK Flutter %@", format];
+    
+    va_list args;
+    va_start(args, format);
+    
+    os_log(OS_LOG_DEFAULT, "%{public}s", [[[NSString alloc] initWithFormat:newFormat arguments:args] cStringUsingEncoding:NSUTF8StringEncoding]);
+    
+    va_end(args);
+}
+
 + (void)log:(NSString*)format, ... {
     if([self sharedLogger].loggingEnabled == NO) {
         return;
     }
     
+    NSString *newFormat = [[NSString alloc] initWithFormat:@"AtomicSDK Flutter %@", format];
     va_list args;
     va_start(args, format);
     
-    if(@available(iOS 10, *)) {
-        // Use the new unified logging API.
-        os_log(OS_LOG_DEFAULT, "%{public}s", [[[NSString alloc] initWithFormat:format arguments:args] cStringUsingEncoding:NSUTF8StringEncoding]);
-    } else {
-        // Fallback to NSLog.
-        NSLogv(format, args);
-    }
+    os_log(OS_LOG_DEFAULT, "%{public}s", [[[NSString alloc] initWithFormat:newFormat arguments:args] cStringUsingEncoding:NSUTF8StringEncoding]);
     
     va_end(args);
 }

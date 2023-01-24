@@ -1,7 +1,9 @@
 package io.atomic.atomic_sdk_flutter
 
 import androidx.annotation.NonNull
+import com.atomic.actioncards.sdk.AACSDK
 import com.atomic.actioncards.sdk.events.AACEventPayload
+import io.atomic.atomic_sdk_flutter.helpers.AACFlutterSessionDelegate
 import io.atomic.atomic_sdk_flutter.utils.asListOfType
 import io.atomic.atomic_sdk_flutter.utils.asStringMap
 import io.atomic.atomic_sdk_flutter.utils.asStringMapOfType
@@ -22,6 +24,7 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
   private val aacFlutterSDK = AACFlutterSDK()
   private lateinit var channel: MethodChannel
   private val flutterLogger = AACFlutterLogger()
+  private lateinit var sessionDelegate: AACFlutterSessionDelegate
 
   override fun onAttachedToEngine(@NonNull binding: FlutterPluginBinding) {
     channel = MethodChannel(binding.binaryMessenger, SESSION_CHANNEL)
@@ -48,13 +51,14 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
     when (call.method) {
       "setApiBaseUrl" -> setApiBaseUrl(call, result)
       "initialise" -> initialise(call, result)
-      "setLoggingEnabled" -> setLoggingEnabled(call, result)
+      "enableDebugMode" -> enableDebugMode(call, result)
       "logout" -> logout(result)
       "registerDeviceForNotifications" -> registerDeviceForNotifications(call, result)
       "registerStreamContainersForNotifications" -> registerStreamContainersForNotifications(
         call,
         result
       )
+      "registerStreamContainersForNotificationsEnabled" -> registerStreamContainersForNotificationsEnabled(call, result)
       "deregisterDeviceForNotifications" -> deregisterDeviceForNotifications(result)
       "notificationFromPushPayload" -> notificationFromPushPayload(call, result)
       "observeCardCount" -> observeCardCount(call, result)
@@ -63,8 +67,14 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
       "sendEvent" -> sendEvent(call, result)
       "userMetrics" -> userMetrics(call, result)
       "trackPushNotificationReceived" -> trackPushNotificationReceived(call, result)
+      "onAuthTokenReceived" -> didReceiveAuthenticationToken(call)
       else -> result.notImplemented()
     }
+  }
+
+  private fun didReceiveAuthenticationToken(call: MethodCall) {
+    val parameters = call.arguments.asListOfType<String>() ?: throw IllegalArgumentException("You must supply a token and the linked identifier for the session delegate.")
+    sessionDelegate.didReceiveAuthenticationToken(parameters[0], parameters[1])
   }
 
   private fun trackPushNotificationReceived(call: MethodCall, result: Result) {
@@ -72,9 +82,7 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
       val parameters = call.arguments as ArrayList<*>
       val payloadRaw = (parameters[0] as Map<*, *>).asStringMapOfType<String>()
         ?: throw IllegalArgumentException("Notification payload was not in the expected format.")
-      val token = parameters[1] as? String
-        ?: throw IllegalArgumentException("You must supply a string token when tracking received notification.")
-      if (aacFlutterSDK.trackPushNotificationReceived(payloadRaw, token)) {
+      if (aacFlutterSDK.trackPushNotificationReceived(payloadRaw)) {
         result.success(true)
       } else {
         result.error(ERROR_CODE_TRACK_PUSH_NOTIFICATION,
@@ -94,7 +102,7 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
       val parameters =
         call.arguments.asListOfType<String>()
           ?: throw IllegalArgumentException("You must supply a stream container ID and authentication token when requesting user metrics.")
-      aacFlutterSDK.userMetrics(parameters[0], parameters[1], result)
+      aacFlutterSDK.userMetrics(parameters[0], result)
     } catch (e: Exception) {
       flutterLogger.error(e)
       result.error(ERROR_CODE_USER_METRICS, e.message, "Failed to request user metrics.")
@@ -106,8 +114,6 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
       val parameters = call.arguments as ArrayList<*>
       val payloadRaw = (parameters[0] as Map<*, *>).asStringMap()
         ?: throw IllegalArgumentException("Event payload was not in the expected format.")
-      val token = parameters[1] as? String
-        ?: throw IllegalArgumentException("You must supply a string token when sending event.")
       val eventName = payloadRaw["name"] as? String
         ?: throw IllegalArgumentException("You must supply an event name when sending event.")
       AACEventPayload(eventName).apply {
@@ -133,7 +139,7 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
           }
         }
       }.run {
-        aacFlutterSDK.sendEvent(this, token, result)
+        aacFlutterSDK.sendEvent(this, result)
       }
     } catch (e: Exception) {
       flutterLogger.error(e)
@@ -146,7 +152,7 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
       val parameters =
         (call.arguments as ArrayList<*>).asListOfType<String>()
           ?: throw IllegalArgumentException("You must supply a stream container ID and authentication token when requesting card count.")
-      aacFlutterSDK.requestCardCountForStreamContainerWithIdentifier(parameters[0], parameters[1], result)
+      aacFlutterSDK.requestCardCountForStreamContainerWithIdentifier(parameters[0], result)
     } catch (e: Exception) {
       flutterLogger.error(e)
       result.error(
@@ -176,6 +182,11 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
       val parameters =
         call.arguments.asListOfType<String>()
           ?: throw IllegalArgumentException("You must supply a valid environment ID and API key when initialising the Atomic SDK.")
+        sessionDelegate = AACFlutterSessionDelegate()
+      AACSDK.setSessionDelegate {
+        val identifier = sessionDelegate.didRequestNewAuthenticationToken(it)
+        channel.invokeMethod("authTokenRequested", mapOf("identifier" to identifier))
+      }
       result.success(aacFlutterSDK.initialise(parameters))
     } catch (e: Exception) {
       flutterLogger.error(e)
@@ -186,12 +197,12 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
     }
   }
 
-  private fun setLoggingEnabled(call: MethodCall, result: Result) {
+  private fun enableDebugMode(call: MethodCall, result: Result) {
     try {
       val arguments =
-        call.arguments.asListOfType<Boolean>()
-          ?: throw IllegalArgumentException("You must provide a boolean value when enabling or disabling logging.")
-      result.success(aacFlutterSDK.setLoggingEnabled(arguments))
+        call.arguments.asListOfType<Int>()
+          ?: throw IllegalArgumentException("You must provide an int value when setting the debug mode.")
+      result.success(aacFlutterSDK.enableDebugMode(arguments))
     } catch (e: Exception) {
       flutterLogger.error(e)
       result.error(
@@ -203,7 +214,7 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
 
   private fun logout(result: Result) {
     try {
-      result.success(aacFlutterSDK.logout())
+      aacFlutterSDK.logout(result)
     } catch (e: java.lang.Exception) {
       flutterLogger.error(e)
       result.error(
@@ -215,12 +226,8 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
 
   private fun registerDeviceForNotifications(call: MethodCall, result: Result) {
     try {
-      val parameters =
-        call.arguments.asListOfType<String>()
-          ?: throw IllegalArgumentException("You must provide an authentication token and device token when registering a device for push notifications.")
-      result.success(
-        aacFlutterSDK.registerDeviceForNotifications(parameters)
-      )
+      val parameters = call.arguments.asListOfType<String>() ?: throw IllegalArgumentException("You must provide a device token when registering a device for push notifications.")
+      aacFlutterSDK.registerDeviceForNotifications(parameters[0], result)
     } catch (e: Exception) {
       flutterLogger.error(e)
       result.error(
@@ -232,9 +239,26 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
 
   private fun registerStreamContainersForNotifications(call: MethodCall, result: Result) {
     try {
-      val streamContainers = call.arguments.asListOfType<Any>()
-        ?: throw IllegalArgumentException("You must provide an array of stream container IDs and authentication token when registering stream containers for notifications.")
-      result.success(aacFlutterSDK.registerStreamContainersForNotifications(streamContainers))
+      val arguments = call.arguments.asListOfType<Any>()
+        ?: throw IllegalArgumentException("Invalid call arguments for registering stream containers for notifications.")
+      val streamContainerIds = arguments[0].asListOfType<String>() ?: throw IllegalArgumentException("You must provide an array of stream container IDs when registering stream containers for notifications.")
+      aacFlutterSDK.registerStreamContainersForNotifications(streamContainerIds, result)
+    } catch (e: Exception) {
+      flutterLogger.error(e)
+      result.error(
+        ERROR_CODE_REGISTER_STREAM, e.message,
+        "Failed to register stream container for notifications. Ensure you have provided a valid array of container IDs."
+      )
+    }
+  }
+
+  private fun registerStreamContainersForNotificationsEnabled(call: MethodCall, result: Result) {
+    try {
+      val arguments = call.arguments.asListOfType<Any>()
+        ?: throw IllegalArgumentException("Invalid call arguments for registering stream containers for notifications.")
+      val streamContainerIds = arguments[0].asListOfType<String>() ?: throw IllegalArgumentException("You must provide an array of stream container IDs when registering stream containers for notifications.")
+      val notificationEnabled = arguments[1] as Boolean
+      aacFlutterSDK.registerStreamContainersForNotifications(streamContainerIds, result, notificationEnabled)
     } catch (e: Exception) {
       flutterLogger.error(e)
       result.error(
@@ -246,7 +270,7 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
 
   private fun deregisterDeviceForNotifications(result: Result) {
     try {
-      result.success(aacFlutterSDK.deregisterDeviceForNotifications())
+      result.success(aacFlutterSDK.deregisterDeviceForNotifications(result))
     } catch (e: Exception) {
       flutterLogger.error(e)
       result.error(
@@ -276,9 +300,8 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
       val arguments = call.arguments as List<*>
       val containerId = arguments[0] as String
       val interval = arguments[1] as Double
-      val authToken = arguments[2] as String
 
-      val identifier = aacFlutterSDK.observeCardCount(containerId, interval, authToken
+      val identifier = aacFlutterSDK.observeCardCount(containerId, interval
       ) { count, identifier ->
         channel.invokeMethod("cardCountChanged", mapOf("identifier" to identifier, "cardCount" to count))
       }
