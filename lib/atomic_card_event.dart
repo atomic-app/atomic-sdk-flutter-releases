@@ -1,6 +1,4 @@
-/**
- * Card events that the SDK can communicate back to the host app.
- */
+/// Card events that the SDK can communicate back to the host app.
 enum AACCardEventKind {
   /// A card was successfully submitted.
   submitted,
@@ -46,20 +44,17 @@ extension AACCardEventKindSerialzed on AACCardEventKind {
         return "cardDismissFailed";
       case AACCardEventKind.snoozeFailed:
         return "cardSnoozeFailed";
-      default:
-        throw Exception('Unsupported AACCardEventKind value.');
     }
   }
 }
 
-/**
- * An event pertaining to a card, such as when a card is submitted,
- * dismissed, snoozed or voted on.
- */
+/// An event pertaining to a card, such as when a card is submitted,
+/// dismissed, snoozed or voted on.
 class AACCardEvent {
+  AACCardEvent.fromJson(Map<String, dynamic> jsonData)
+      : kind = AACCardEventKind.values
+            .firstWhere((element) => element.stringValue == jsonData["kind"]);
   final AACCardEventKind kind;
-
-  AACCardEvent.fromJson(dynamic jsonData) : kind = AACCardEventKind.values.firstWhere((element) => element.stringValue == jsonData["kind"]) {}
 }
 
 abstract class AACCardEventDelegate {

@@ -1,3 +1,7 @@
+## 23.4.0
+
+* Updated to match the version 23.4.0 Android and iOS SDKs. For more details, see the [Flutter guide](https://documentation.atomic.io/sdks/flutter).
+
 ## 1.0.0
 
 * Introduces WebSockets support and global session delegate.

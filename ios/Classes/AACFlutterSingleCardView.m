@@ -77,9 +77,11 @@
     self.containerViewController = [[AACFlutterContainerViewController alloc] init];
     
     UIViewController *rootViewController = [self rootViewController];
-    [self.containerViewController willMoveToParentViewController:rootViewController];
-    [rootViewController addChildViewController:self.containerViewController];
-    [self.containerViewController didMoveToParentViewController:rootViewController];
+    if(rootViewController != nil) {
+        [self.containerViewController willMoveToParentViewController:rootViewController];
+        [rootViewController addChildViewController:self.containerViewController];
+        [self.containerViewController didMoveToParentViewController:rootViewController];
+    }
     
     self.singleCardView = [[AACFlutterSingleCardViewImpl alloc] initWithFrame:frame
                                                           containerIdentifier:containerId
@@ -102,7 +104,6 @@
     [self.containerViewController.view removeFromSuperview];
     [self.containerViewController removeFromParentViewController];
     [self.containerViewController didMoveToParentViewController:nil];
-    
     self.containerViewController = nil;
     
     [self.singleCardView removeFromSuperview];
@@ -121,8 +122,8 @@
                      }];
 }
 
-- (void)applyFilter:(AACCardFilter *)filter {
-    [self.singleCardView applyFilter:filter];
+- (void)applyFilters:(NSArray<AACCardFilter *> *)filters {
+    [self.singleCardView applyFilters:filters];
 }
 
 - (void)refresh {

@@ -1,6 +1,6 @@
 package io.atomic.atomic_sdk_flutter.helpers
 
-import java.util.*
+import java.util.UUID
 
 typealias SessionDelegateCallback = (String?) -> Unit
 
@@ -11,7 +11,7 @@ private class AACFlutterSessionDelegateResolutionRequest(val handler: SessionDel
 class AACFlutterSessionDelegate {
   private var sessionDelegateRequests = mutableMapOf<String, AACFlutterSessionDelegateResolutionRequest>()
   fun didReceiveAuthenticationToken(token: String, identifier: String) {
-    val handler = sessionDelegateRequests[identifier]?.handler ?: throw RuntimeException("Request received for authentication token $identifier but no matching request was found.")
+    val handler = sessionDelegateRequests[identifier]?.handler ?: return
     handler(token)
     sessionDelegateRequests.remove(identifier)
   }
@@ -20,5 +20,9 @@ class AACFlutterSessionDelegate {
     val request = AACFlutterSessionDelegateResolutionRequest(callback)
     sessionDelegateRequests[request.identifier] = request
     return request.identifier
+  }
+
+  fun clearAllRequests() {
+    sessionDelegateRequests.clear()
   }
 }
