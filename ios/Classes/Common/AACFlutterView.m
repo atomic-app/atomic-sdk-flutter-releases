@@ -7,6 +7,8 @@
 #import "AACFlutterView.h"
 #import "AACConfiguration+Flutter.h"
 #import "AACValidateArguments.h"
+#import "NSString+ParsedDate.h"
+#import "AACFilterParser.h"
 
 NSString *_Nonnull const kAACErrorCodeUnsupportedChannelCommand = @"01";
 
@@ -51,17 +53,17 @@ NSString *_Nonnull const kAACErrorCodeUnsupportedChannelCommand = @"01";
 
 - (void)methodCallHandler:(FlutterMethodCall*) call
                    result:(FlutterResult) result {
-    if([call.method isEqual:@"applyFilter"]) {
-        AACValidateArguments(call.arguments, @[ NSDictionary.class ], result);
+    if([call.method isEqual:@"applyFilters"]) {
+        AACValidateArguments(call.arguments, @[ NSArray.class ], result);
         dispatch_async(dispatch_get_main_queue(), ^{
             // Must run on the main thread as this is a UI method.
-            NSString *filterId = call.arguments[0][@"byCardInstanceId"];
-            AACCardFilter *filter = [AACCardListFilter filterByCardInstanceId:filterId];
-            [self applyFilter:filter];
+            [self applyFiltersFromJson:call.arguments[0]];
         });
         result(@(YES));
         return;
     }
+
+
     
     if([call.method isEqual:@"refresh"]) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -87,15 +89,49 @@ NSString *_Nonnull const kAACErrorCodeUnsupportedChannelCommand = @"01";
 }
 
 -(void)refresh {
-    // Does nothing by default.
+    // Does nothing by default - subclass should override.
 }
 
-- (void)applyFilter:(AACCardFilter*)filter {
-  // Does nothing by default.
+- (void)applyFiltersFromJson:(NSArray<NSDictionary<NSString *, id> *> *)filterJsons {
+    // filterJsons example:
+    //(
+    //        {
+    //        lessThanOrEqualTo =         {
+    //            byPriority = 3;
+    //        };
+    //    },
+    //        {
+    //        notIn =         (
+    //                        {
+    //                byVariableName =                 {
+    //                    customStringVar = test3;
+    //                };
+    //            },
+    //                        {
+    //                byVariableName =                 {
+    //                    customStringVar = test4;
+    //                };
+    //            }
+    //        );
+    //    }
+    //)
+
+    NSArray<AACCardFilter *> *filters = [AACFilterParser parseFiltersFromJson:filterJsons];
+
+    if (filters.count > 0) {
+        [self applyFilters:filters];
+    }
+    else {
+        [self applyFilters:nil];
+    }
+}
+
+- (void)applyFilters:(NSArray<AACCardFilter *> *)filters {
+    // Does nothing by default - subclass should override.
 }
 
 - (void)updateVariables {
-    // Does nothing by default.
+    // Does nothing by default - subclass should override.
 }
 
 - (UIView *)view {
@@ -103,8 +139,30 @@ NSString *_Nonnull const kAACErrorCodeUnsupportedChannelCommand = @"01";
     return nil;
 }
 
+- (UIViewController *)locateFlutterViewController:(NSArray<UIWindow *> *)windows {
+    for(UIWindow *window in windows) {
+        if([window.rootViewController isKindOfClass:FlutterViewController.class]) {
+            return window.rootViewController;
+        }
+    }
+    return nil;
+}
+
 - (UIViewController*)rootViewController {
-    return [UIApplication sharedApplication].keyWindow.rootViewController;
+    if (@available(iOS 13.0, *)) {
+        for(UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+            if([scene isKindOfClass:UIWindowScene.class]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                UIViewController *viewController = [self locateFlutterViewController:windowScene.windows];
+                if(viewController != nil) {
+                    return viewController;
+                }
+            }
+        }
+    } else {
+        return [self locateFlutterViewController:UIApplication.sharedApplication.windows];
+    }
+    return nil;
 }
 
 - (void)dealloc {

@@ -1,8 +1,7 @@
 //
 //  AACFlutterSessionDelegateResolutionRequest.m
-//  atomic_sdk_flutter
-//
-//  Created by Eric on 15/12/22.
+// Atomic SDK - Flutter
+// Copyright © 2022 Atomic.io Limited. All rights reserved.
 //
 
 #import "AACFlutterSessionDelegateResolutionRequest.h"

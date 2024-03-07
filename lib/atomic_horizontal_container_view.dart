@@ -5,13 +5,13 @@ import 'package:atomic_sdk_flutter/atomic_stream_container.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
-/// Creates an Atomic single card view, rendering the most recent card in the container.
-/// You must supply a `containerId` and `configuration` object.
-class AACSingleCardView extends StatefulWidget {
-  const AACSingleCardView({
+/// Creates a view designed to display a horizontal list of cards for a given stream container.
+/// Cards in a horizontal list have the same card width, which must be specified during initialisation.
+/// The stream container it displays is identified by its ID in the Workbench.
+class AACHorizontalContainerView extends StatefulWidget {
+  const AACHorizontalContainerView({
     required this.containerId,
     required this.configuration,
     super.key,
@@ -22,29 +22,25 @@ class AACSingleCardView extends StatefulWidget {
     this.onViewLoaded,
   });
   final String containerId;
-  final AACSingleCardConfiguration configuration;
+  final AACHorizontalContainerConfiguration configuration;
   final AACRuntimeVariableDelegate? runtimeVariableDelegate;
   final void Function(double width, double height)? onSizeChanged;
   final AACStreamContainerActionDelegate? actionDelegate;
   final AACCardEventDelegate? eventDelegate;
-  final void Function(AACSingleCardViewState containerState)? onViewLoaded;
+  final void Function(AACHorizontalContainerViewState containerState)?
+      onViewLoaded;
 
   @override
-  AACSingleCardViewState createState() => AACSingleCardViewState();
+  AACHorizontalContainerViewState createState() =>
+      AACHorizontalContainerViewState();
 }
 
-class AACSingleCardViewState extends AACContainerViewState<AACSingleCardView> {
-  double singleCardHeight = 1;
-  AndroidViewController? _androidController;
+class AACHorizontalContainerViewState
+    extends AACContainerViewState<AACHorizontalContainerView> {
+  double horizontalCardHeight = 1;
 
   @override
-  void dispose() {
-    _androidController?.dispose();
-    super.dispose();
-  }
-
-  @override
-  String get viewType => 'io.atomic.sdk.singleCard';
+  String get viewType => 'io.atomic.sdk.horizontalContainer';
 
   @override
   Widget build(BuildContext context) {
@@ -55,43 +51,13 @@ class AACSingleCardViewState extends AACContainerViewState<AACSingleCardView> {
 
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return SizedBox(
-          width: double.infinity,
-          height: singleCardHeight,
-          child: PlatformViewLink(
-            viewType: viewType,
-            surfaceFactory:
-                (BuildContext context, PlatformViewController controller) {
-              return AndroidViewSurface(
-                controller: controller as AndroidViewController,
-                gestureRecognizers: <Factory<PanGestureRecognizer>>{}..add(
-                    const Factory<PanGestureRecognizer>(
-                      PanGestureRecognizer.new,
-                    ),
-                  ),
-                hitTestBehavior: PlatformViewHitTestBehavior.opaque,
-              );
-            },
-            onCreatePlatformView: (PlatformViewCreationParams params) {
-              return _androidController =
-                  PlatformViewsService.initExpensiveAndroidView(
-                id: params.id,
-                viewType: viewType,
-                layoutDirection: TextDirection.ltr,
-                creationParams: creationParams,
-                creationParamsCodec: const JSONMessageCodec(),
-              )
-                    ..addOnPlatformViewCreatedListener(
-                      params.onPlatformViewCreated,
-                    )
-                    ..addOnPlatformViewCreatedListener(createMethodChannel);
-            },
-          ),
+        throw UnimplementedError(
+          "Horizontal container is not available on Android yet.",
         );
       case TargetPlatform.iOS:
         return SizedBox(
           width: double.infinity,
-          height: singleCardHeight,
+          height: horizontalCardHeight,
           child: UiKitView(
             viewType: viewType,
             layoutDirection: TextDirection.ltr,
@@ -131,7 +97,7 @@ class AACSingleCardViewState extends AACContainerViewState<AACSingleCardView> {
         final width = (args['width'] as num).toDouble();
         final height = (args['height'] as num).toDouble();
         setState(() {
-          singleCardHeight = height;
+          horizontalCardHeight = height;
         });
         widget.onSizeChanged?.call(width, height);
         break;

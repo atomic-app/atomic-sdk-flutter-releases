@@ -9,21 +9,20 @@ import io.flutter.plugin.platform.PlatformViewFactory
 import org.json.JSONObject
 import java.lang.Exception
 
-/** Factory that generates Atomic stream containers for use in Flutter. */
+/** Factory that generates Atomic single card view for use in Flutter. */
 class AACFlutterSingleCardViewFactory(
-  private val binaryMessenger: BinaryMessenger) :
-  PlatformViewFactory(JSONMessageCodec.INSTANCE) {
+    private val binaryMessenger: BinaryMessenger) :
+    PlatformViewFactory(JSONMessageCodec.INSTANCE) {
 
-  private val flutterLogger = AACFlutterLogger()
-
-  @Throws(Exception::class)
-  override fun create(context: Context?, viewId: Int, args: Any?): PlatformView {
-    try {
-      val containerSettings = AACContainerSettings.create(args as JSONObject)
-      return AACFlutterSingleCardView(context!!, containerSettings, viewId, binaryMessenger)
-    } catch (e: Exception){
-      flutterLogger.error(e)
-      throw Exception("Cannot create AACStreamContainer. Check container parameters.")
+    private val flutterLogger = AACFlutterLogger()
+    @Throws(Exception::class)
+    override fun create(context: Context?, viewId: Int, args: Any?): PlatformView {
+        try {
+            val containerSettings = AACContainerSettings.create(args as JSONObject)
+            return AACFlutterSingleCardView(context!!, containerSettings, viewId, binaryMessenger)
+        } catch (e: Exception){
+            flutterLogger.error(e)
+            throw Exception("Cannot create AACStreamContainer. Check container parameters.")
+        }
     }
-  }
 }

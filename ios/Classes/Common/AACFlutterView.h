@@ -48,11 +48,10 @@
  Returns the Flutter app's root view controller.
  */
 - (UIViewController*)rootViewController;
-
 /**
- Applies the specified filter to the card list, showing only cards that match this filter.
+ Applies the specified filters to the card list, showing only cards that match these filters.
  */
-- (void)applyFilter:(AACCardFilter*)filter;
+- (void)applyFilters:(NSArray<AACCardFilter *> *)filters;
 
 /**
  Instructs the stream container to check for new cards immediately.

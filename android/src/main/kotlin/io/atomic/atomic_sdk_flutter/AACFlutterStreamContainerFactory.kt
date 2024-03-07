@@ -7,7 +7,6 @@ import io.flutter.plugin.common.JSONMessageCodec
 import io.flutter.plugin.platform.PlatformView
 import io.flutter.plugin.platform.PlatformViewFactory
 import org.json.JSONObject
-import java.lang.Exception
 
 /** Factory that generates Atomic stream containers for use in Flutter. */
 class AACFlutterStreamContainerFactory(

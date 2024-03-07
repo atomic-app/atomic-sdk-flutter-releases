@@ -1,7 +1,9 @@
 package io.atomic.atomic_sdk_flutter
 
 import android.content.Context
+import android.content.ContextWrapper
 import android.view.View
+import androidx.fragment.app.FragmentActivity
 import com.atomic.actioncards.feed.data.model.AACCardEvent
 import com.atomic.actioncards.feed.data.model.AACCardInstance
 import com.atomic.actioncards.sdk.AACStreamContainer
@@ -9,6 +11,7 @@ import com.atomic.actioncards.sdk.PresentationMode
 import com.atomic.actioncards.sdk.VotingOption
 import io.atomic.atomic_sdk_flutter.helpers.AACFlutterWrapperFragment
 import io.atomic.atomic_sdk_flutter.model.AACContainerSettings
+import io.atomic.atomic_sdk_flutter.utils.FilterApplier
 import io.atomic.atomic_sdk_flutter.utils.asListOfType
 import io.atomic.atomic_sdk_flutter.utils.asStringMapOfType
 import io.flutter.plugin.common.BinaryMessenger
@@ -49,8 +52,20 @@ internal open class AACFlutterStreamContainer(
     isInitialised = false
   }
 
+  @Throws(Exception::class)
   private fun initAACSDK() {
-    val manager = (context as AACFlutterActivity).supportFragmentManager
+    val manager = when (context) {
+      is FragmentActivity -> {
+        context.supportFragmentManager
+      }
+      is ContextWrapper -> {
+        (context.baseContext as FragmentActivity).supportFragmentManager
+      }
+      else -> {
+        throw Exception("Cannot create AACStreamContainer. Unknown context: $context")
+      }
+    }
+
     manager.beginTransaction().add(fragment, "AACFlutterWrapperFragment").commitNow()
 
     val fm = fragment.childFragmentManager
@@ -251,25 +266,19 @@ internal open class AACFlutterStreamContainer(
   open fun onChangeSize() {
   }
 
-  private fun applyFilter(argumentsRaw: Any) {
-    if (fragment.childFragmentManager.fragments.size == 0) return
-    (argumentsRaw as List<*>).asListOfType<Map<*, *>>()?.let { arguments ->
-      arguments[0].asStringMapOfType<String>()?.let { filter ->
-        filter["byCardInstanceId"]?.let {
-          container.filterCardsById(fragment.childFragmentManager, it)
-        }
-      }
-    }
+  private fun applyFilters(argumentsRaw: Any) {
+    val fragmentManager = fragment.childFragmentManager
+    if (fragmentManager.fragments.size == 0) return
+    (argumentsRaw as List<*>).firstOrNull()?.asListOfType<Map<String, *>>()?.let { FilterApplier(context).tryApplyFiltersFromJson(it, container, fragmentManager) }
   }
 
   private fun updateVariables() {
     container.updateVariables(fragment.childFragmentManager)
   }
 
-  @Suppress("UNUSED_PARAMETER")
   private fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
     when (call.method) {
-      "applyFilter" -> applyFilter(call.arguments)
+      "applyFilters" -> applyFilters(call.arguments)
       "updateVariables" -> updateVariables()
       else -> {
         result.error(

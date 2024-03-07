@@ -10,6 +10,10 @@ static NSDictionary *kAACFlutterVotingMapping = nil;
 static NSDictionary *kAACFlutterInterfaceStyleMapping = nil;
 static NSDictionary *kAACFlutterCustomStringMapping = nil;
 static NSDictionary *kAACFlutterPresentationStyleMapping = nil;
+static NSDictionary *kAACHorizontalContainerConfigurationEmptyStyleMapping = nil;
+static NSDictionary *kAACHorizontalContainerConfigurationHeaderAlignmentMapping = nil;
+static NSDictionary *kAACHorizontalContainerConfigurationLastCardAlignmentMapping = nil;
+static NSDictionary *kAACHorizontalContainerConfigurationScrollModeMapping = nil;
 static CGFloat kAACColourScale = 255.0f;
 
 @implementation AACConfiguration (Flutter)
@@ -40,11 +44,31 @@ static CGFloat kAACColourScale = 255.0f;
             @"tryAgainTitle":@(AACCustomStringTryAgainTitle),
             @"dataLoadFailedMessage":@(AACCustomStringDataLoadFailedMessage),
             @"noInternetConnectionMessage":@(AACCustomStringNoInternetConnectionMessage),
+            @"toastCardDismissedMessage":@(AACCustomStringToastCardDismissedMessage),
+            @"toastCardCompletedMessage":@(AACCustomStringToastCardCompletedMessage),
+            @"toastCardSnoozeMessage":@(AACCustomStringToastCardSnoozeMessage),
+            @"toastCardFeedbackMessage":@(AACCustomStringToastCardFeedbackMessage),
         };
         kAACFlutterPresentationStyleMapping = @{
             @"withoutButton": @(AACConfigurationPresentationStyleWithoutButton),
             @"withActionButton": @(AACConfigurationPresentationStyleWithActionButton),
             @"withContextualButton": @(AACConfigurationPresentationStyleWithContextualButton),
+        };
+        kAACHorizontalContainerConfigurationEmptyStyleMapping = @{
+            @"standard": @(AACHorizontalContainerConfigurationEmptyStyleStandard),
+            @"shrink": @(AACHorizontalContainerConfigurationEmptyStyleShrink),
+        };
+        kAACHorizontalContainerConfigurationHeaderAlignmentMapping = @{
+            @"center": @(AACHorizontalContainerConfigurationHeaderAlignmentCenter),
+            @"left": @(AACHorizontalContainerConfigurationHeaderAlignmentLeft),
+        };
+        kAACHorizontalContainerConfigurationLastCardAlignmentMapping = @{
+            @"left": @(AACHorizontalContainerConfigurationLastCardAlignmentLeft),
+            @"center": @(AACHorizontalContainerConfigurationLastCardAlignmentCenter),
+        };
+        kAACHorizontalContainerConfigurationScrollModeMapping = @{
+            @"snap": @(AACHorizontalContainerConfigurationScrollModeSnap),
+            @"free": @(AACHorizontalContainerConfigurationScrollModeFree),
         };
     });
     
@@ -55,6 +79,28 @@ static CGFloat kAACColourScale = 255.0f;
         AACSingleCardConfiguration *singleConfig = [[AACSingleCardConfiguration alloc] init];
         singleConfig.automaticallyLoadNextCard = [(NSNumber*)automaticallyLoadNextCard boolValue];
         config = singleConfig;
+    }
+    id cardWidth = dict[@"cardWidth"];
+    if(cardWidth != nil && [cardWidth isKindOfClass:NSNumber.class]) {
+        AACHorizontalContainerConfiguration *horizonConfig = [[AACHorizontalContainerConfiguration alloc] init];
+        horizonConfig.cardWidth = [(NSNumber *)cardWidth doubleValue];
+        id emptyStyle = dict[@"emptyStyle"];
+        if(emptyStyle != nil && [emptyStyle isKindOfClass:NSString.class]) {
+            horizonConfig.emptyStyle = [kAACHorizontalContainerConfigurationEmptyStyleMapping[emptyStyle] intValue];
+        }
+        id headerAlignment = dict[@"headerAlignment"];
+        if(headerAlignment != nil && [headerAlignment isKindOfClass:NSString.class]) {
+            horizonConfig.headerAlignment = [kAACHorizontalContainerConfigurationHeaderAlignmentMapping[headerAlignment] intValue];
+        }
+        id lastCardAlignment = dict[@"lastCardAlignment"];
+        if(lastCardAlignment != nil && [lastCardAlignment isKindOfClass:NSString.class]) {
+            horizonConfig.lastCardAlignment = [kAACHorizontalContainerConfigurationLastCardAlignmentMapping[lastCardAlignment] intValue];
+        }
+        id scrollMode = dict[@"scrollMode"];
+        if(scrollMode != nil && [scrollMode isKindOfClass:NSString.class]) {
+            horizonConfig.scrollMode = [kAACHorizontalContainerConfigurationScrollModeMapping[scrollMode] intValue];
+        }
+        config = horizonConfig;
     }
     id pollingInterval = dict[@"pollingInterval"];
     id cardVotingOptions = dict[@"cardVotingOptions"];

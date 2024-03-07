@@ -87,8 +87,8 @@
     self.streamContainerViewController = nil;
 }
 
-- (void)applyFilter:(AACCardFilter *)filter {
-    [self.streamContainerViewController applyFilter:filter];
+- (void)applyFilters:(NSArray<AACCardFilter *> *)filters {
+    [self.streamContainerViewController applyFilters:filters];
 }
 
 - (void)refresh {

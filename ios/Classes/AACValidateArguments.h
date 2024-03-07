@@ -1,35 +1,42 @@
 //
-//  AACValidateArguments.h
-//  atomic_sdk_flutter
-//
-//  Created by Eric on 23/10/21.
+// AACValidateArguments.h
+// Atomic SDK - Flutter
+// Copyright © 2021 Atomic.io Limited. All rights reserved.
 //
 
 #import "AACFlutterLogger.h"
 
-static BOOL AACValidateArgumentsImpl(id arguments, NSArray<Class>* types) {
+static NSString* AACValidateArgumentsImpl(id arguments, NSArray<Class>* types, BOOL canBeNull) {
+    NSString *result = @"";
     if([arguments isKindOfClass:NSArray.class] == NO) {
-        [AACFlutterLogger log:@"Argument validation failed: expected NSArray but received %@.", arguments];
-        return NO;
+        result = [NSString stringWithFormat:@"Argument validation failed: expected NSArray but received %@.", arguments];
+        [AACFlutterLogger log:@"%@", result];
     }
     
     NSArray *args = (NSArray*)arguments;
     
     // Check we have the right number of arguments.
     if(args.count != types.count) {
-        [AACFlutterLogger log:@"Argument validation failed: count mismatch. Expected %@ arguments but received %@.", @(types.count), @(args.count)];
-        return NO;
+        result = [NSString stringWithFormat:@"Argument validation failed: count mismatch. Expected %@ arguments but received %@.", @(types.count), @(args.count)];
+        [AACFlutterLogger log:@"%@", result];
     }
     
     // Check each argument is of the correct type.
     for(int i = 0; i < args.count; i++) {
-        if([args[i] isKindOfClass:types[i]] == NO) {
-            [AACFlutterLogger log:@"Argument validation failed: argument at index %@ was not of type %@, got %@ instead.", @(i), NSStringFromClass(types[i]), args[i]];
-            return NO;
+        BOOL passed = [args[i] isKindOfClass:types[i]];
+        if(passed == NO && canBeNull) {
+            passed = [args[i] isKindOfClass:NSNull.class];
+        }
+        if(passed == NO) {
+            result = [NSString stringWithFormat:@"Argument validation failed: argument at index %@ was not of type %@, got %@ instead.", @(i), NSStringFromClass(types[i]), args[i]];
+            [AACFlutterLogger log:@"%@", result];
         }
     }
     
-    return YES;
+    return result;
 };
-#define AACValidateArguments(args, types, result) if(AACValidateArgumentsImpl(args, types) == NO) { result(@(NO)); return; }
+#define AACValidateArguments(args, types, result) NSString* aacArgumentsValidateResult = AACValidateArgumentsImpl(args, types, NO); if(aacArgumentsValidateResult.length > 0) { result([FlutterError errorWithCode:@"InvalidArguments" message:aacArgumentsValidateResult details:nil]); return; }
+
+// The argument can also be NSNull.
+#define AACValidateArgumentsAllowNull(args, types, result) NSString* aacArgumentsValidateResult = AACValidateArgumentsImpl(args, types, YES); if(aacArgumentsValidateResult.length > 0) { result([FlutterError errorWithCode:@"InvalidArguments" message:aacArgumentsValidateResult details:nil]); return; }
 

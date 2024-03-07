@@ -1,11 +1,19 @@
 package io.atomic.atomic_sdk_flutter
 
 import android.content.Context
+import android.util.Log
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.Observer
+import com.atomic.actioncards.feed.data.model.Card
+import com.atomic.actioncards.sdk.AACCardAction
+import com.atomic.actioncards.sdk.AACCardActionResult
 import com.atomic.actioncards.sdk.AACSDK
 import com.atomic.actioncards.sdk.AACSDKLogoutResult
+import com.atomic.actioncards.sdk.AACStreamContainer
 import com.atomic.actioncards.sdk.events.AACEventPayload
 import com.atomic.actioncards.sdk.events.AACProcessedEvent
 import com.atomic.actioncards.sdk.notifications.AACSDKRegistrationCallback
+import io.atomic.atomic_sdk_flutter.utils.FilterApplier
 import io.flutter.plugin.common.MethodChannel.Result
 import kotlinx.coroutines.*
 
@@ -14,16 +22,21 @@ private var flutterLogger: AACFlutterLogger = AACFlutterLogger()
  * Manages Android AACSDK
  */
 class AACFlutterSDK {
-
-  private var observeCardCount = mutableMapOf<String, Boolean>()
+  private var cardCountObservers = mutableMapOf<String, CardCountObserver>()
   private var cardCountInstanceCount = 0
+  private lateinit var context : Context
 
   /**
    * Initialises the components of the Atomic SDK. This method must be called before
    * using any other methods.
    */
   fun initSDK(context: Context) {
+    this.context = context
     AACSDK.init(context)
+  }
+
+  fun setClientAppVersion(version: String) {
+    AACSDK.setClientAppVersion(version)
   }
 
   fun trackPushNotificationReceived(data: Map<String, String>): Boolean {
@@ -33,7 +46,7 @@ class AACFlutterSDK {
   }
 
   fun userMetrics(streamContainerId: String, result: Result) {
-    AACSDK.userMetrics() { userMetrics ->
+    AACSDK.userMetrics { userMetrics ->
       CoroutineScope(Dispatchers.Main + NonCancellable).launch {
         if (userMetrics != null) {
           with(userMetrics) {
@@ -175,7 +188,7 @@ class AACFlutterSDK {
   fun deregisterDeviceForNotifications(result: Result) {
     val errorCode = "Error when de-registering the device for notifications."
     try {
-      AACSDK.deregisterDeviceForNotifications() {
+      AACSDK.deregisterDeviceForNotifications {
         dealRegistrationCallback(errorCode, it, result)
       }
     } catch (e: Exception) {
@@ -210,7 +223,7 @@ class AACFlutterSDK {
   }
 
   fun logout(result: Result) {
-    AACSDK.logout {
+    AACSDK.logout(false) {
       when (it) {
         is AACSDKLogoutResult.Success -> result.success(true)
         is AACSDKLogoutResult.NetworkError -> {
@@ -223,39 +236,138 @@ class AACFlutterSDK {
     }
   }
 
+  private class CardCountObserver(context : Context, identifier : String, containerId : String, interval : Long, filtersJsonList: List<Map<String, *>>, onCount: ((Int, String) -> Unit)) {
+    private var observer : Observer<Int?>
+    private var container : AACStreamContainer
+    private var liveCount : LiveData<Int?>
+    init {
+      container = AACStreamContainer.create(containerId)
+      container.cardListRefreshInterval = interval
+      if (filtersJsonList.isNotEmpty()) {
+        FilterApplier(context).tryApplyFiltersFromJson(filtersJsonList, container)
+      }
+
+      container.startUpdates()
+
+      observer = Observer { count: Int? ->
+        if (count != null) {
+          Log.i("cardCount", "$identifier has a new count: $count")
+          onCount(count, identifier)
+        }
+      }
+      liveCount = AACSDK.getLiveCardCountForStreamContainer(container)
+      liveCount.observeForever(observer)
+    }
+    fun stop() {
+      liveCount.removeObserver(observer)
+      container.stopUpdates()
+    }
+  }
+
   fun observeCardCount(
     containerId: String,
-    interval: Double,
+    pollingInterval: Int,
+    filtersJsonList:  List<Map<String, *>>,
     onCount: ((Int, String) -> Unit)
   ): String {
-    val identifier = getNextIdentifier()
-    observeCardCount[identifier] = true
-    val i = if (interval < 1000) {
-      1000L
+    val interval = if (pollingInterval < 1000) {
+      1000
     } else {
-      interval.toLong()
+      pollingInterval.toLong()
     }
-
-    CoroutineScope(Dispatchers.Main + NonCancellable).launch {
-      while (observeCardCount[identifier] == true) {
-        val count = AACSDK.getCardCountForStreamContainer(containerId)
-        count?.let {
-          onCount(it, identifier)
-        }
-        delay(i)
-      }
-    }
+    val identifier = getNextObsCardCountIdentifier()
+    cardCountObservers[identifier] = CardCountObserver(context, identifier, containerId, interval, filtersJsonList, onCount)
     return identifier
   }
 
-  private fun getNextIdentifier(): String {
+  private fun getNextObsCardCountIdentifier(): String {
     cardCountInstanceCount += 1
     return "AACFlutterCardCountObserver-${cardCountInstanceCount}"
   }
 
   fun stopObservingCardCount(identifier: String): Boolean {
-    observeCardCount[identifier] = false
-    observeCardCount.remove(identifier)
+    if (cardCountObservers[identifier] == null) {
+      Log.i("cardCount", "Observer $identifier doesn't exist")
+      return false;
+    }
+    else {
+      cardCountObservers[identifier]!!.stop()
+      cardCountObservers.remove(identifier)
+      Log.i("cardCount", "Observer $identifier removed")
+    }
     return true
+  }
+
+  fun observeStreamContainer(
+          container:  AACStreamContainer,
+          runtimeVariables: Map<String, String>?,
+          runtimeVariableAnalytics: Boolean,
+          runtimeVariableResolutionTimeout: Int,
+          filtersJsonList: List<Map<String, *>>?,
+          pollingInterval: Int,
+          onUpdate: (List<Card>?) -> Unit)
+          : String {
+    val interval = if (pollingInterval < 1000) {
+      1000
+    } else {
+      pollingInterval.toLong()
+    }
+
+    container.cardListRefreshInterval = interval
+
+    if (!filtersJsonList.isNullOrEmpty()) {
+      FilterApplier(context).tryApplyFiltersFromJson(filtersJsonList, container)
+    }
+
+    container.runtimeVariableResolutionTimeout = runtimeVariableResolutionTimeout.toLong()
+    container.runtimeVariableAnalyticsEnabled = runtimeVariableAnalytics
+    if (!runtimeVariables.isNullOrEmpty()) {
+      container.cardDidRequestRunTimeVariablesHandler = { cards, done ->
+        for (card in cards) {
+          runtimeVariables.forEach { (name, value) ->
+            card.resolveVariableWithNameAndValue(name, value)
+          }
+        }
+        done(cards)
+      }
+    }
+
+    return AACSDK.observeStreamContainer(container, onUpdate)
+  }
+
+  fun executeCardAction(containerId: String, cardInstanceId : String, actionType : String, arg : Any?, result : Result) {
+    val card : Card = Card.createWithId(cardInstanceId)
+    val action : AACCardAction = when (actionType) {
+      "Dismiss" -> AACCardAction.Dismiss(card)
+      "Snooze" -> AACCardAction.Snooze(card, (arg as Int).toLong())
+      "Submit" -> {
+        val submittedValues = arg as? Map<String, Any>
+        if (submittedValues == null) {
+          result.error("submittedValues not given for the Submit card action.", "Failed to execute card action.", null)
+          return
+        }
+        AACCardAction.Submit(card, submittedValues.toMutableMap())
+      }
+      else -> {
+        result.error("Action type not found.", "Failed to execute card action.", null)
+        return
+      }
+    }
+    AACSDK.onCardAction(AACStreamContainer.create(containerId), action) { actionResult ->
+      // result.success even for AACCardActionResult errors might be confusing here.
+      // It's because a String result is returned to the wrapper,
+      // and the "result" variable is completely different to "actionResult", despite similar names.
+      when (actionResult) {
+        AACCardActionResult.Success -> {
+          result.success("Success")
+        }
+        AACCardActionResult.DataError -> {
+          result.success("DataError")
+        }
+        AACCardActionResult.NetworkError -> {
+          result.success("NetworkError")
+        }
+      }
+    }
   }
 }
