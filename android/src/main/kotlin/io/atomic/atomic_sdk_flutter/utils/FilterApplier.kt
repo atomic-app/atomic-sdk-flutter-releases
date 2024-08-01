@@ -83,7 +83,7 @@ class FilterApplier(private val context : Context) {
                 return null
             }
 
-            else -> return null;
+            else -> return null
         }
     }
 

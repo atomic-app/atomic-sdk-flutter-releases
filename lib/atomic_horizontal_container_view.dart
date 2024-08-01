@@ -1,155 +1,111 @@
-import 'package:atomic_sdk_flutter/atomic_card_event.dart';
-import 'package:atomic_sdk_flutter/atomic_card_runtime_variable.dart';
-import 'package:atomic_sdk_flutter/atomic_container_view_state.dart';
 import 'package:atomic_sdk_flutter/atomic_stream_container.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:atomic_sdk_flutter/src/atomic_view.dart';
 
 /// Creates a view designed to display a horizontal list of cards for a given stream container.
 /// Cards in a horizontal list have the same card width, which must be specified during initialisation.
 /// The stream container it displays is identified by its ID in the Workbench.
-class AACHorizontalContainerView extends StatefulWidget {
-  const AACHorizontalContainerView({
-    required this.containerId,
-    required this.configuration,
-    super.key,
-    this.runtimeVariableDelegate,
-    this.actionDelegate,
-    this.eventDelegate,
-    this.onSizeChanged,
-    this.onViewLoaded,
-  });
-  final String containerId;
-  final AACHorizontalContainerConfiguration configuration;
-  final AACRuntimeVariableDelegate? runtimeVariableDelegate;
-  final void Function(double width, double height)? onSizeChanged;
-  final AACStreamContainerActionDelegate? actionDelegate;
-  final AACCardEventDelegate? eventDelegate;
-  final void Function(AACHorizontalContainerViewState containerState)?
-      onViewLoaded;
 
-  @override
-  AACHorizontalContainerViewState createState() =>
-      AACHorizontalContainerViewState();
+final class AACHorizontalContainerView
+    extends AACSizeChangingView<AACHorizontalContainerConfiguration> {
+  const AACHorizontalContainerView({
+    required super.containerId,
+    required super.configuration,
+    super.key,
+    super.runtimeVariableDelegate,
+    super.actionDelegate,
+    super.eventDelegate,
+    super.onSizeChanged,
+    super.onViewLoaded,
+  });
 }
 
-class AACHorizontalContainerViewState
-    extends AACContainerViewState<AACHorizontalContainerView> {
-  double horizontalCardHeight = 1;
+/// Specialised configuration object for use with a horizontal container view.
+class AACHorizontalContainerConfiguration
+    extends AACStreamContainerConfiguration {
+  AACHorizontalContainerConfiguration({
+    required this.cardWidth,
+  });
+
+  /// The width of every card displayed in the horizontal container view.
+  final double cardWidth;
+
+  /// The empty style of a horizontal container view. It determines how the view displays
+  /// when there are no cards. Defaults to [AACHorizontalContainerConfigurationEmptyStyle.standard].
+  AACHorizontalContainerConfigurationEmptyStyle emptyStyle =
+      AACHorizontalContainerConfigurationEmptyStyle.standard;
+
+  /// The option for aligning the title of the header horizontally.
+  /// Defaults to [AACHorizontalContainerConfigurationHeaderAlignment.center].
+  AACHorizontalContainerConfigurationHeaderAlignment headerAlignment =
+      AACHorizontalContainerConfigurationHeaderAlignment.center;
+
+  /// The option for aligning the last card in a horizontal container.
+  /// Defaults to [AACHorizontalContainerConfigurationLastCardAlignment.left].
+  AACHorizontalContainerConfigurationLastCardAlignment lastCardAlignment =
+      AACHorizontalContainerConfigurationLastCardAlignment.left;
+
+  /// The option for controlling the scroll mode of the container. Defaults to [AACHorizontalContainerConfigurationScrollMode.snap].
+  AACHorizontalContainerConfigurationScrollMode scrollMode =
+      AACHorizontalContainerConfigurationScrollMode.snap;
 
   @override
-  String get viewType => 'io.atomic.sdk.horizontalContainer';
-
-  @override
-  Widget build(BuildContext context) {
-    final creationParams = <String, dynamic>{
-      "containerId": widget.containerId,
-      "configuration": widget.configuration,
-    };
-
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        throw UnimplementedError(
-          "Horizontal container is not available on Android yet.",
-        );
-      case TargetPlatform.iOS:
-        return SizedBox(
-          width: double.infinity,
-          height: horizontalCardHeight,
-          child: UiKitView(
-            viewType: viewType,
-            layoutDirection: TextDirection.ltr,
-            creationParams: creationParams,
-            gestureRecognizers: <Factory<PanGestureRecognizer>>{}..add(
-                const Factory<PanGestureRecognizer>(
-                  PanGestureRecognizer.new,
-                ),
-              ),
-            onPlatformViewCreated: createMethodChannel,
-            creationParamsCodec: const JSONMessageCodec(),
-          ),
-        );
-      case TargetPlatform.fuchsia:
-      case TargetPlatform.linux:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-        throw UnsupportedError(
-          'The Atomic SDK Flutter wrapper supports iOS and Android only.',
-        );
-    }
+  Map<String, dynamic> toJson() {
+    final jsonValue = super.toJson();
+    jsonValue["cardWidth"] = cardWidth;
+    jsonValue["emptyStyle"] = emptyStyle.value;
+    jsonValue["headerAlignment"] = headerAlignment.value;
+    jsonValue["lastCardAlignment"] = lastCardAlignment.value;
+    jsonValue["scrollMode"] = scrollMode.value;
+    return jsonValue;
   }
+}
 
-  @override
-  Future<dynamic> handleMethodCall(MethodCall call) async {
-    final args = (call.arguments as Map?)?.cast<String, dynamic>();
-    switch (call.method) {
-      case 'viewLoaded':
+/// The style of empty state (when there are no cards) for the horizontal container.
+enum AACHorizontalContainerConfigurationEmptyStyle {
+  /// The horizontal container should always display a no card user interface.
+  standard("standard"),
 
-        /// Indicate that the native container has been completely loaded
-        widget.onViewLoaded?.call(this);
-        break;
-      case 'sizeChanged':
-        if (args == null) {
-          break;
-        }
-        final width = (args['width'] as num).toDouble();
-        final height = (args['height'] as num).toDouble();
-        setState(() {
-          horizontalCardHeight = height;
-        });
-        widget.onSizeChanged?.call(width, height);
-        break;
-      case 'didTapLinkButton':
-        if (widget.actionDelegate != null && args != null) {
-          final action = AACCardCustomAction(
-            cardInstanceId: args["cardInstanceId"] as String,
-            containerId: args["containerId"] as String,
-            actionPayload:
-                (args["actionPayload"] as Map).cast<String, dynamic>(),
-          );
-          widget.actionDelegate!.didTapLinkButton(action);
-        }
-        break;
-      case 'didTapSubmitButton':
-        if (widget.actionDelegate != null && args != null) {
-          final action = AACCardCustomAction(
-            cardInstanceId: args["cardInstanceId"] as String,
-            containerId: args["containerId"] as String,
-            actionPayload:
-                (args["actionPayload"] as Map).cast<String, dynamic>(),
-          );
-          widget.actionDelegate!.didTapSubmitButton(action);
-        }
-        break;
-      case 'requestRuntimeVariables':
-        final cards = <AACCardInstance>[];
-        if (args == null) {
-          break;
-        }
-        final cardsToResolveRaw = args['cardsToResolve'] as List;
-        for (final cardJson in cardsToResolveRaw) {
-          final card = AACCardInstance.fromJson(
-            (cardJson as Map).cast<String, dynamic>(),
-          );
-          cards.add(card);
-        }
-        final results = await widget.runtimeVariableDelegate
-            ?.requestRuntimeVariables(cards);
-        if (results != null) {
-          return results.map((e) => e.toJson()).toList();
-        } else {
-          return cards.map((e) => e.toJson()).toList();
-        }
-      case 'didTriggerCardEvent':
-        if (widget.eventDelegate != null && args != null) {
-          final event = AACCardEvent.fromJson(
-            (args['cardEvent'] as Map).cast<String, dynamic>(),
-          );
-          widget.eventDelegate!.didTriggerCardEvent(event);
-        }
-        break;
-    }
-  }
+  /// The horizontal container should shrink itself when there are no cards.
+  shrink("shrink");
+
+  const AACHorizontalContainerConfigurationEmptyStyle(this.value);
+  final String value;
+}
+
+/// Options that specify the alignment of the title in the horizontal header.
+enum AACHorizontalContainerConfigurationHeaderAlignment {
+  /// The title is aligned in the middle of the header.
+  center("center"),
+
+  /// The title is aligned to the left of the header.
+  left("left");
+
+  const AACHorizontalContainerConfigurationHeaderAlignment(this.value);
+  final String value;
+}
+
+/// Options that control the alignment of the last card in the horizontal container.
+/// This option only applies when there is only one card in the container.
+enum AACHorizontalContainerConfigurationLastCardAlignment {
+  /// The last card is aligned to the left of the container.
+  left("left"),
+
+  /// The last card is aligned in the middle of the container.
+  center("center");
+
+  const AACHorizontalContainerConfigurationLastCardAlignment(this.value);
+  final String value;
+}
+
+/// Options that control the scroll mode of the horizontal container.
+enum AACHorizontalContainerConfigurationScrollMode {
+  /// The container scrolls over one card at a time, where applicable the card is placed
+  /// in the middle of the view port when the scroll terminates.
+  snap("snap"),
+
+  /// The container scrolls freely.
+  free("free");
+
+  const AACHorizontalContainerConfigurationScrollMode(this.value);
+  final String value;
 }

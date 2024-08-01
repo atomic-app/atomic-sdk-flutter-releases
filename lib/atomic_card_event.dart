@@ -57,6 +57,6 @@ class AACCardEvent {
   final AACCardEventKind kind;
 }
 
-abstract class AACCardEventDelegate {
+mixin AACCardEventDelegate {
   void didTriggerCardEvent(AACCardEvent event);
 }

@@ -1,18 +1,18 @@
-# Flutter SDK - Current (23.4.0)
+# Flutter SDK - Current (24.2.0)
 
 ## Introduction
 
-The Flutter SDK wraps the Atomic iOS and Android SDKs, allowing you to use them in your Flutter apps.
+The Flutter SDK wraps the Atomic iOS (24.2.0) and Android (24.2.1) SDKs, allowing you to use them in your Flutter apps.
 
 ### Supported iOS and Android versions
 
-The Flutter SDK supports iOS 12 and above, and Android 5.0 and above. 
+The Flutter SDK supports iOS 12 and above, and Android 5.0 and above.
 
 Atomic Flutter SDK is `null-safe`.
 
 **Dart SDK 2.17.0+** is required.
 
-The current stable release is **23.4.0**.
+The current stable release is **24.2.0**.
 
 ## Boilerplate app
 
@@ -33,17 +33,13 @@ dependencies:
   atomic_sdk_flutter:
     git:
       url: git@github.com:atomic-app/atomic-sdk-flutter-releases.git
-      ref: 23.4.0
+      ref: 24.2.0
 ```
 
 The `ref` property should be set to the version number of the Flutter SDK that you wish to use. A list of version numbers is documented in our [changelog](https://documentation.atomic.io/resources/changelog).
 
 :::info Minimal Dart SDK
-Atomic Flutter SDK requires the Dart SDK to be 2.17.0 or above. So your pubspec.yaml file needs the following constraints:
-```yaml
-environment:
-  sdk: '>=2.17.0 <3.0.0'
-```
+Atomic Flutter SDK uses Dart SDK `>=3.0.0 <4.0.0`, which should also be backwards compatible with projects still using Dart `2.0.0`.
 :::
 
 You also need to make the following changes for each platform:
@@ -60,7 +56,7 @@ source 'https://github.com/CocoaPods/Specs.git'
 2. At the end of the file, add the following line:
 
 ```ruby
-pod 'AtomicSDK', :git => 'https://github.com/atomic-app/action-cards-ios-sdk-releases', :tag => "23.4.0"
+pod 'AtomicSDK', :git => 'https://github.com/atomic-app/action-cards-ios-sdk-releases', :tag => "24.2.0"
 ```
 
 3. In the same directory, run `pod install` to fetch the Atomic SDK dependency. If you are unable to run this command, check that you have [Cocoapods](https://cocoapods.org/) installed.
@@ -77,13 +73,7 @@ maven {
 
 2. Bump your minimum SDK version. In your `android/app/build.gradle` file, change the value of `minSdkVersion` to `21` if the current value is less than this.
 
-3. Add the Material dependency to your app. Add the following to the `dependencies` block in your `android/app/build.gradle` file:
-
-```java
-implementation 'com.google.android.material:material:1.2.1'
-```
-
-Change the `parent` attribute for `NormalTheme` and `LaunchTheme` to `Theme.MaterialComponents.Light.NoActionBar` in the following files:
+3. Change the `parent` attribute for `NormalTheme` and `LaunchTheme` to `Theme.MaterialComponents.Light.NoActionBar` in the following files:
 
 - `android/app/src/main/res/values/styles.xml`
 - `android/app/src/main/res/values-night/styles.xml`
@@ -152,7 +142,7 @@ Atomic SDK uses a JSON Web Token (JWT) to perform authentications.
 
 The [SDK Authentication guide](https://documentation.atomic.io/sdks/auth-SDK) provides step-by-step instructions on how to generate a JWT and add a public key to the Workbench.
 
-Within your host app, you will need to call `AACSession.setSessionDelegate` to provide an object extending an abstract class `AACSessionDelegate`, which contains only one method `Future<String> authToken`.
+Within your host app, you will need to call `AACSession.setSessionDelegate` to provide an object implementing the `AACSessionDelegate` mixin, which contains only one method `Future<String> authToken`.
 
 It is expected that the token returned by this method represents the same user until you call the `logout` method.
 
@@ -161,7 +151,7 @@ It is expected that the token returned by this method represents the same user u
 ```dart
 import 'package:atomic_sdk_flutter/atomic_stream_container.dart';
 
-class YourSessionDelegate extends AACSessionDelegate {
+class YourSessionDelegate with AACSessionDelegate {
 
   @override
   Future<String> authToken() async {
@@ -266,6 +256,37 @@ The configuration object is a class of `AACStreamContainerConfiguration`, which 
   - `cardListHeader`: The header should display at the top of the card list, allowing the user to pull down from the top of the screen to refresh the card list.
   - `defaultValue`: A combination of `cardListToast` and `cardListHeader`. Toast messages and the card list header should be shown.
 
+#### Maximum card width {#max-card-width}
+
+*(Introduced in Flutter 24.2.0)*
+
+`cardMaxWidth`: You can now specify a maximum width for each card within the vertical stream container or a single card view, with center alignment for the cards.
+
+It's applicable to both vertical containers and single card views.
+
+The default value for `cardMaxWidth` is `0`, which means the card will automatically adjust its width to match that of the stream container.
+
+To set this, use the `cardMaxWidth` property in `AACStreamContainerConfiguration` to define the desired width, and apply this configuration when initializing the stream container.
+
+However, there are a few considerations for using this property:
+
+- For iOS, it's advised not to set the `cardMaxWidth` to less than `200` to avoid layout constraint warnings due to possible insufficient space for the content within the cards.
+
+- Any negative values for this property will be reset to `0`.
+
+- If the specified `cardMaxWidth` exceeds the width of the stream container, the property will be ignored.
+
+- In horizontal stream containers, the `cardMaxWidth` property behaves the same as the `cardWidth` property, and it must be > 0.
+
+The following code snippet sets the maximum card width to 500.
+
+```dart
+final config = AACStreamContainerConfiguration();
+config.cardMaxWidth = 500;
+
+final streamContainer = AACStreamContainer(containerId: "1234", configuration: config)
+```
+
 #### Functionality
 
 - `pollingInterval`: How frequently the card list should be automatically refreshed. Defaults to 15 seconds, and must be at least 1 second. If set to 0, the card list will not automatically refresh after the initial load. `pollingInterval` only applies to HTTP polling and has no effect when WebSockets is on.
@@ -314,7 +335,7 @@ You can also provide other optional parameters when you create a stream containe
 - `runtimeVariableDelegate`: An optional runtime variable delegate that resolves runtime variable for the cards.
 - `onViewLoaded`: An optional call back that allows post-loading actions, such as applying stream container filters.
 
-### Displaying a stream container
+## Displaying a stream container
 
 You can now create a stream container by supplying the stream container ID and configuration object on instantiation:
 
@@ -339,7 +360,7 @@ Container(
 });
 ```
 
-### Displaying a single card
+## Displaying a single card
 
 The Atomic iOS SDK also supports rendering a single card in your host app.
 
@@ -404,16 +425,16 @@ You can also customize the text for the first load screen error messages and the
 - `AACCustomString.dataLoadFailedMessage`: The error message shown when the theme or card list cannot be loaded due to an API error. Defaults to "Couldn't load data".
 - `AACCustomString.tryAgainTitle`: The title of the button allowing the user to retry the failed request for the card list or theme. Defaults to "Try again".
 
-## API-driven card containers
+## API-driven card containers {#api-driven-card-containers}
 
 *(introduced in 23.4.0)*
 
-In version 23.4.0, we've introduced a new feature for observing stream containers with pure SDK API, even when that container's UI is not loaded into memory.
+In version 23.4.0, we introduced a new feature for observing stream containers with pure SDK API, even when that container's UI is not loaded into memory.
 
 When you opt to observe a stream container, it is updated by default immediately after any changes in the published cards. Should the WebSocket be unavailable, the cards are updated at regular intervals, which you can specify. Upon any change in cards, the handler block is executed with the updated card list or `null` if the cards couldn't be fetched. Note that the specified time interval for updates cannot be less than 1 second.
 
 The following code snippet shows the simplest use case scenario:
-```Dart
+```dart
 await AACSession.observeStreamContainer(
   containerId: streamContainerId,
   callback: (cards) {
@@ -422,12 +443,12 @@ await AACSession.observeStreamContainer(
     }
     else {
       print("There are ${cards.length} cards in the container.")
-    } 
+    }
   },
 );
 ```
 
-This method returns a token that you can use to stop the observation, see [Stopping the observation](https://documentation.atomic.io/sdks/flutter#stopping-the-observation) for more details.
+This method returns a token that you can use to stop the observation, see [Stopping the observation](#stopping-the-observation) for more details.
 
 :::info Card instance class clusters
 
@@ -440,18 +461,18 @@ In the callback, the `cards` parameter is an array of `AACCard` objects. Each `A
 The method accepts an optional configuration parameter. The configuration object, `AACStreamContainerObserverConfiguration`, allows you to customize the observer's behavior with the following properties, which are all optional:
 
 - **pollingInterval**: defines how frequently the system checks for updates when the WebSocket service is unavailable. The default interval is 15 seconds, but it must be at least 1 second. If a value less than 1 second is specified, it defaults to 1 second.
-- **filters**: filters applied when fetching cards for the stream container. It defaults to `null`, meaning no filters are applied. See [Filtering cards](https://documentation.atomic.io/sdks/flutter#filtering-cards) for more details of stream filtering.
+- **filters**: filters applied when fetching cards for the stream container. It defaults to `null`, meaning no filters are applied. See [Filtering cards](#filtering-cards) for more details of stream filtering.
 :::info Filters
 The legacy filter `AACCardFilter.byCardInstanceId` for `observeStreamContainer` only works on iOS, not Android.
 :::
-- **runtimeVariables**: A map of runtime variables which will be resolved before observing the stream container. Defaults to `null`. See [Runtime variables](https://documentation.atomic.io/sdks/flutter#runtime-variables) for more details of runtime variables.
+- **runtimeVariables**: A map of runtime variables which will be resolved before observing the stream container. Defaults to `null`. See [Runtime variables](#runtime-variables) for more details of runtime variables.
 - **runtimeVariableResolutionTimeout**: the maximum time allocated for resolving variables in the delegate. If the tasks within the delegate method exceed this timeout, or if the completionHandler is not called within this timeframe, default values will be used for all runtime variables. The default timeout is 5 seconds and it cannot be negative.
-- **runtimeVariableAnalytics**: whether the `runtime-vars-updated` analytics event, which includes the resolved values of each runtime variable, should be sent upon resolution. The default setting is `false`. If you set this flag to `true`, ensure that the resolved values of your runtime variables do not contain sensitive information that shouldn't appear in analytics. See [SDK analytics](https://documentation.atomic.io/sdks/flutter#sdk-analytics) for more details on runtime variable analytics.
+- **runtimeVariableAnalytics**: whether the `runtime-vars-updated` analytics event, which includes the resolved values of each runtime variable, should be sent upon resolution. The default setting is `false`. If you set this flag to `true`, ensure that the resolved values of your runtime variables do not contain sensitive information that shouldn't appear in analytics. See [SDK analytics](#sdk-analytics) for more details on runtime variable analytics.
 
-### Stopping the observation
+### Stopping the observation {#stopping-the-observation}
 The observer ceases to function when you call `AACSession.logout()`. Alternatively, you can stop the observation using the token returned from the observation call mentioned above:
 
-```Dart
+```dart
 // Start observing and save the observer's token.
 final token = await AACSession.observeStreamContainer(
   containerId: streamContainerId,
@@ -474,11 +495,11 @@ Card metadata encompasses data that, while not part of the card's content, are s
 - **Action flags**: Also defined in the Workbench, these flags dictate the visibility of options such as dismissing, snoozing, and voting menus for the card.
 
 The code snippet below shows how to access these metadata elements for a card instance.
-```Dart
+```dart
 import 'package:atomic_sdk_flutter/atomic_session.dart';
 
 AACSession.observeStreamContainer(
-  containerId: "1", 
+  containerId: "1",
   callback: (cards) {
     final card = cards?.first;
     print("The card instance ID is ${card?.id}");
@@ -493,7 +514,7 @@ Elements refer to the contents that are defined in the Workbench on the `Content
 
 The code snippet below shows how to traverse through all the elements in a card and extract the text representing the card's category.
 
-```Dart
+```dart
 await AACSession.observeStreamContainer(
   containerId: "1",
   callback: (cards) {
@@ -513,27 +534,42 @@ await AACSession.observeStreamContainer(
 The `AACLayoutNode` class can represent properties for the various elements you can create in Workbench. Detailed documentation for all these properties is not provided, but they correspond to the raw card JSON viewable in the workbench.
 
 #### Accessing subviews
-Subviews are layouts that differ from the `defaultView` and each has a unique subview ID. See [Link to subview](https://documentation.atomic.io/advanced/themes-and-style#link-to-subview) on how to get the subview ID.
+Subviews are layouts that differ from the `defaultView` and each has a unique subview ID. See [Link to subview](https://documentation.atomic.io/guide/configuration/themes#link-to-subview) on how to get the subview ID.
 
-The following code snippet shows how to retrieve a subview layout using a specific subview ID.
+The following code snippet shows how to retrieve a subview layout using a specific subview ID, which you can find in the workbench:
 
-```Dart
+```dart
 await AACSession.observeStreamContainer(
   containerId: "1",
   callback: (cards) {
     final card = cards?.first;
-    final subview = card?.subviews["subviewID"];
+    final subview = card?.subviews["<subview ID>"];
     print("Accessing subview ${subview?.title}");
+    List<AACViewNode> subviewNodes = subview.nodes;
+    // Do something with subviewNodes?
   },
 );
 ```
 
-:::info Accessing a card's subviews in iOS
-The AACCard's subviews are not yet available for iOS in this version of the Flutter SDK. Subviews will be added in a future Flutter release.
+Or traverse all subview layouts for that card:
+
+```dart
+await AACSession.observeStreamContainer(
+  containerId: "1",
+  callback: (cards) {
+    final card = cards?.first;
+    subviews.forEach((subviewId, subview) {
+      print("Accessing subview ${subview?.title}");
+      List<AACViewNode> subviewNodes = subview.nodes;
+      // Do something with subviewNodes?
+    });
+  },
+);
+```
 
 #### Dynamically displaying all data from a list of `AACLayoutNode`s
 The `nodeColumns` method below is an example that uses recursion to show data from a `List` of `AACLayoutNode`s, as well as their children (and their children's children, etc.). The data is displayed with nested `Column` and `Text` widgets.
-```Dart
+```dart
 import 'package:atomic_sdk_flutter/atomic_data_interface.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -549,7 +585,6 @@ List<Column> nodeColumns(List<AACLayoutNode> nodes) {
             ),
             Text("Type: ${node.type}"),
             Text("Attributes: ${node.attributes}"),
-            Text("Validations: ${node.validations}"),
             const Text(
               "Children:",
               style: TextStyle(fontWeight: FontWeight.bold),
@@ -567,16 +602,16 @@ List<Column> nodeColumns(List<AACLayoutNode> nodes) {
 ## API-driven card actions
 *(introduced in 23.4.0)*
 
-In version 23.4.0, we've introduced a new feature that execute card actions through pure SDK API. The currently supported actions are: dismiss, submit, and snooze. To execute these card actions, follow these three steps:
+In version 23.4.0, we introduced a new feature that execute card actions through pure SDK API. The currently supported actions are: dismiss, submit, and snooze. To execute these card actions, follow these three steps:
 
-1. **Create a card action object**: Use the corresponding initialization methods of the `AACCardAction` class. You'll need a container id and a card instance ID for this. The card instance ID can be obtained from an [AACCard] from `AACSession.observeStreamContainer` (see [API-driven card containers](https://documentation.atomic.io/sdks/flutter#api-driven-card-containers) for more details).
+1. **Create a card action object**: Use the corresponding initialization methods of the `AACCardAction` class. You'll need a container id and a card instance ID for this. The card instance ID can be obtained from an `AACCard` from `AACSession.observeStreamContainer` (see [API-driven card containers](#api-driven-card-containers) for more details).
 2. **Execute the action**: Call the method `AACSDK.executeCardAction` to perform the card action.
 3. **Check the result of the action in the result callback**: The result will be an `AACCardActionResult` enum.
 
 ### Dismissing a card
 The following code snippet shows how to dismiss a card.
 
-```Dart
+```dart
 AACSession.executeCardAction(
   containerId,
   cardId,
@@ -608,40 +643,77 @@ However, for this non-UI version, support for input components is not available 
 
 :::
 
-The following code snippet shows how to submit a card with specific values.
+As of version 24.2.0, Atomic cards include button names when they are submitted. The button name will be added to analytics to enable referencing the triggering button in an Action Flow. Therefore, you need to provide a button name when submitting cards.
 
-```Dart
+##### Getting the button name
+The button name of a submit button can be acquired when receiving cards through [API-driven cards](#api-driven-card-containers). You can also find the button name on the button element in the workbench. The following code snippet shows how to obtain button name of the first submit button from the top-level of the first card.
+
+
+```dart
+String? _buttonName;
+
+token = await AACSession.observeStreamContainer(
+  containerId: "1",
+  callback: (cards) {
+    if (cards != null) {
+      // Traverse the elements from the top-level of the first card.
+      for (final node in cards.first.defaultView.nodes) {
+        if (node.attributes["type"] == "submitButton") {
+          // Save the name of this submit button element.
+          _buttonName = node.attributes["name"] as String?;
+          // Break so we only save the first submit button's name in this card.
+          break;
+        }
+      }
+    }
+  },
+);
+```
+
+##### Submitting the card
+
+With button name obtained, you can now submit the card. The following code snippet shows how to submit a card with specific values.
+
+```dart
+// Obtain _buttonName
+
+...
+
 const submittedValues = <String, Object>{
   "stringKey": "string",
   "numberKey": 22,
   "booleanKey": false,
 };
-AACSession.executeCardAction(
-  containerId,
-  cardId,
-  AACCardAction.submit(submittedValues),
-  (result) {
-    switch (result) {
-      case AACCardActionResult.Success:
-        print("Card $cardId submitted with values!");
-        break;
-      case AACCardActionResult.DataError:
-        print("Card $cardId DataError!");
-        break;
-      case AACCardActionResult.NetworkError:
-        print("Card $cardId NetworkError!");
-        break;
-    }
-  },
-);
+
+if (_buttonName != null) {
+  AACSession.executeCardAction(
+    containerId,
+    cardId,
+    AACCardAction.submit(_buttonName, submittedValues),
+    (result) {
+      switch (result) {
+        case AACCardActionResult.Success:
+          print("Card $cardId submitted with values!");
+          break;
+        case AACCardActionResult.DataError:
+          print("Card $cardId DataError!");
+          break;
+        case AACCardActionResult.NetworkError:
+          print("Card $cardId NetworkError!");
+          break;
+      }
+    },
+  );
+}
 ```
+
 
 ### Snoozing a Card
 When snoozing a card, you must specify a non-negative interval in seconds. Otherwise an error will be returned.
 
 The following code snippet shows how to snooze a card for a duration of 1 minute.
 
-```Dart
+```dart
 const snoozeInterval = 60;
 AACSession.executeCardAction(
   containerId,
@@ -673,7 +745,7 @@ The interface style determines which theme is rendered:
 - `light`: The stream container will always render in light mode, regardless of the device setting.
 - `dark`: The stream container will always render in dark mode, regardless of the device setting.
 
-## Filtering cards
+## Filtering cards {#filtering-cards}
 
 Stream containers (vertical or horizontal), single card views and container card count observers can have one or more filters applied. These filters determine which cards are displayed, or how many cards are counted.
 
@@ -699,7 +771,7 @@ Use corresponding static methods of `AACCardFilterValue` to create a filter valu
 
 The following code snippet shows how to create a filter value that represents a card priority 4.
 
-```Dart
+```dart
 final filterValue = AACCardFilterValue.byPriority(4);
 ```
 
@@ -707,11 +779,11 @@ final filterValue = AACCardFilterValue.byPriority(4);
 
 The following code snippet shows how to create a filter value that represents a boolean custom variable `isSpecial`.
 
-```Dart
+```dart
 final filterValue = AACCardFilterValue.byVariableNameBool("isSpecial", false);
 ```
 
-**Note:** It's important to specify the right value type when referencing custom variables for filter value. There are five types of variables in the Workbench, currently four are supported: 
+**Note:** It's important to specify the right value type when referencing custom variables for filter value. There are five types of variables in the Workbench, currently four are supported:
 - String: `AACCardFilterValue.byVariableNameString(String variableName, String value)`
 - Number: `AACCardFilterValue.byVariableNameInt(String variableName, int value)`
 - Date: `AACCardFilterValue.byVariableNameDateTime(String variableName, DateTime valuel)`
@@ -753,7 +825,7 @@ After creating a filter value, use the corresponding static method on the AACCar
 
 The following code snippet shows how to create a filter that filters card with priority between 2 and 6 inclusive.
 
-```Dart
+```dart
 final filterValue1 = AACCardFilterValue.byPriority(2);
 final filterValue2 = AACCardFilterValue.byPriority(6);
 final filter = AACCardFilter.between(filterValue1, filterValue2);
@@ -783,9 +855,9 @@ There are three steps to filter cards in a stream container or for a card count 
     AACStreamContainer(
       configuration: ...,
       containerId: '1234',
-      onViewLoaded: (state) {    
+      onViewLoaded: (state) {
         AACCardFilter filter = AACCardFilter.byCardInstanceId('cardId1234');
-        await state.applyFilter(filter); 
+        await state.applyFilter(filter);
         // or, for multiple filters: await state.applyFilters(List<AACCardFilter> filters);
         // or, to delete all filters: await state.applyFilters([]);
       },
@@ -798,9 +870,9 @@ There are three steps to filter cards in a stream container or for a card count 
 ##### Card priority 5 and above
 
 The following code snippet shows how to only display cards with priority > 5 in a stream container.
-```Dart
+```dart
 ...
-onViewLoaded: (state) {   
+onViewLoaded: (state) {
   final filterValue = AACCardFilterValue.byPriority(5)
   final filter = AACCardFilter.greaterThan(filterValue)
 
@@ -813,9 +885,9 @@ onViewLoaded: (state) {
 
 The following code snippet shows how to only display cards created earlier than 9/Jan/2023 inclusive in a stream container.
 
-```Dart
+```dart
 ...
-onViewLoaded: (state) {   
+onViewLoaded: (state) {
   final filterValue = AACCardFilterValue.byCreatedDate(DateTime(2023, 1, 9));
   final filter = AACCardFilter.lessThanOrEqualTo(filterValue);
 
@@ -827,9 +899,9 @@ onViewLoaded: (state) {
 
 The following code snippet shows how to only display cards with the template names 'card 1', 'card 2', or 'card 3' in a stream container.
 
-```Dart
+```dart
 ...
-onViewLoaded: (state) {   
+onViewLoaded: (state) {
   final filterValue1 = AACCardFilterValue.byCardTemplateName("card1");
   final filterValue2 = AACCardFilterValue.byCardTemplateName("card2");
   final filterValue3 = AACCardFilterValue.byCardTemplateName("card3");
@@ -845,9 +917,9 @@ The following code snippet shows how to only display cards with priority != 6 an
 
 Note: `isSpecial` is a Boolean custom variable defined in Workbench.
 
-```Dart
+```dart
 ...
-onViewLoaded: (state) {   
+onViewLoaded: (state) {
   final filterValue1 = AACCardFilterValue.byPriority(6);
   final filter1 = AACCardFilter.notEqualTo(filterValue1);
 
@@ -862,18 +934,18 @@ onViewLoaded: (state) {
 
 The legacy filter is still supported - `AACCardFilter.byCardInstanceId(String cardInstanceId)`. This filter requests that the stream container or single card view show only a card matching the specified card instance ID, if it exists. An instance of this filter can be created using the corresponding static method on the `AACCardFilter` class.
 
-The card instance ID can be found in the [push notification](https://documentation.atomic.io/sdks/flutter#push-notifications) payload, allowing you to apply the filter in response to a push notification being tapped.
+The card instance ID can be found in the [push notification](#push-notifications) payload, allowing you to apply the filter in response to a push notification being tapped.
 
-```Dart
+```dart
 ...
-onViewLoaded: (state) {   
+onViewLoaded: (state) {
   final filter = AACCardFilter.byCardInstanceId("ABCD-1234");
   state.applyFilter(filter);
 }
 ```
 
 :::info Filters
-The legacy filter `AACCardFilter.byCardInstanceId` for the `observeStreamContainer` method only works on iOS, not Android. 
+The legacy filter `AACCardFilter.byCardInstanceId` for the `observeStreamContainer` method only works on iOS, not Android.
 Also, the legacy filter doesn't work for `observeCardCount` on both platforms.
 Nonetheless, it does work on both platforms for the `applyFilters` method.
 :::
@@ -882,8 +954,8 @@ Nonetheless, it does work on both platforms for the `applyFilters` method.
 
 - For stream containers, pass `null` or an empty list `[]` to the `applyFilters(List<AACCardFilter>? filters)` method.
 
-- For stream container observers, `filters` is an optional parameter (set to `null` by default). The filters cannot be changed after creating the observer: 
-```Dart
+- For stream container observers, `filters` is an optional parameter (set to `null` by default). The filters cannot be changed after creating the observer:
+```dart
 AACSession.observeStreamContainer(config: AACStreamContainerObserverConfiguration(filters: myFilters))
 ```
 
@@ -902,7 +974,7 @@ The action object also contains the card instance ID and stream container ID whe
 import 'package:atomic_sdk_flutter/atomic_stream_container.dart';
 
 // 1. Extend the action delegate.
-class MyActionDelegate extends AACStreamContainerActionDelegate {
+class MyActionDelegate with AACStreamContainerActionDelegate {
   @override
   void didTapActionButton() {
     print("The action button was tapped.");
@@ -927,9 +999,9 @@ class MyActionDelegate extends AACStreamContainerActionDelegate {
 ...
 
 AACStreamContainer(
-configuration: <config>,
-containerId: <container ID>,
-actionDelegate: myActionDelegate,
+  configuration: <config>,
+  containerId: <container ID>,
+  actionDelegate: myActionDelegate,
 )
 ```
 
@@ -988,7 +1060,7 @@ configuration.setValueForCustomString(AACCustomString.votingNotUseful, 'Thumbs d
 
 ## Refreshing a stream container manually
 
-You can choose to manually refresh a stream container or single card view, such as when a push notification arrives while your app is open. Refreshing will result in the stream container or single card view checking for new cards immediately, and showing any that are available. 
+You can choose to manually refresh a stream container or single card view, such as when a push notification arrives while your app is open. Refreshing will result in the stream container or single card view checking for new cards immediately, and showing any that are available.
 
 **Note** On Flutter the stream container is a stateful widget, whose view is actually controlled by its state class, so you need to call `AACStreamContainerState.refresh`.
 
@@ -1011,7 +1083,7 @@ To be notified when these happen, assign a card event delegate to your stream co
 ```dart
 
 // 1. Extend the event delegate.
-class MyEventDelegate extends AACCardEventDelegate {
+class MyEventDelegate with AACCardEventDelegate {
   @override
   void didTriggerCardEvent(AACCardEvent event) {
     // Perform a custom action in response to the card event.
@@ -1019,9 +1091,8 @@ class MyEventDelegate extends AACCardEventDelegate {
   }
 }
 
-// 2. Assign an event delegate on instantiation.
 ...
-
+// 2. Assign an event delegate on instantiation.
 AACStreamContainer(
     configuration: <config>,
     containerId: <container ID>,
@@ -1029,11 +1100,46 @@ AACStreamContainer(
 );
 ```
 
+## Sending custom events
+
+You can send custom events directly to the Atomic Platform for the logged in user, via this method: 
+```dart
+AACSession.sendCustomEvent(String eventName, {Map<String, String>? eventProperties});
+``` 
+The `eventProperties` parameter is optional.
+
+A custom event can be used in the Workbench to create segments for card targeting. For more details of custom events, see [Custom Events](https://documentation.atomic.io/guide/analytics/overview#custom-events).
+
+The event will be created for the user defined by the authentication token returned in the session delegate (which is registered when initiating the SDK). As such, you cannot specify target user IDs using this method.
+
+```dart
+const eventName = "myEvent";
+final properties = {
+  "firstName": "John",
+  "lastName": "Smith",
+};
+
+await AACSession.sendCustomEvent(eventName, eventProperties: properties);
+```
+
+### Error handling
+
+The `sendCustomEvent` method may throw an error if unsuccesful, so it is recommended to wrap it in a try/catch statement:
+
+```dart
+try {
+  await AACSession.sendCustomEvent(eventName, eventProperties: properties);
+} catch (error) {
+  // handle the error
+  print("Sending custom event failed $error");
+}
+```
+
 ## API and additional methods
 
 ### Push notifications
 
-To use push notifications in the Flutter SDK, you'll need to add your iOS push certificate and Android server key in the Workbench (see: [Notifications](https://documentation.atomic.io/workbench/configuration#notifications)), then request push notification permission in your app.
+To use push notifications in the Flutter SDK, you'll need to add your iOS push certificate and Android server key in the Workbench (see: [Notifications](https://documentation.atomic.io/guide/configuration/push-notifications)), then request push notification permission in your app.
 
 Push notification support requires a Flutter library such as [`flutter_apns`](https://pub.dev/packages/flutter_apns).
 
@@ -1087,7 +1193,7 @@ It is recommended that you use _user metrics_ to retrieve the card count instead
 
 The SDK supports observing the card count for a particular stream container. Card count is provided to your callback independently of whether a stream container or single card view has been created, and is updated at the provided interval.
 
-```Dart
+```dart
 Future<String> observeCardCount({
   required String containerId,
   required void Function(int cardCount) callback,
@@ -1116,8 +1222,8 @@ import 'package:atomic_sdk_flutter/atomic_session.dart';
 
 // Retain this token so that you can stop observing later.
 String observerToken = await AACSession.observeCardCount(
-  containerId: '<containerId>', 
-  pollingInterval: 5, 
+  containerId: '<containerId>',
+  pollingInterval: 5,
   callback: (count) {
     print("Card count is now ${count}");
   },
@@ -1163,13 +1269,13 @@ AACSession.userMetrics('container-1234').then((metrics) {
 });
 ```
 
-## Runtime variables
+## Runtime variables {#runtime-variables}
 
 Runtime variables are resolved in the SDK at runtime, rather than from an event payload when the card is assembled. Runtime variables are defined in the Atomic Workbench.
 
 The SDK will ask the host app to resolve runtime variables when a list of cards is loaded (and at least one card has a runtime variable), or when new cards become available due to WebSockets pushing or HTTP polling (and at least one card has a runtime variable).
 
-Runtime variables are resolved by your app via the `requestRuntimeVariables` method on `AACRuntimeVariableDelegate`. If you do not implement this method, runtime variables will fall back to their default values, as defined in the Atomic Workbench. To resolve runtime variables, you pass an object extending `AACRuntimeVariableDelegate` to the parameter `runtimeVariableDelegate` when creating a stream container or a single card view.
+Runtime variables are resolved by your app via the `requestRuntimeVariables` method on `AACRuntimeVariableDelegate`. If you do not implement this method, runtime variables will fall back to their default values, as defined in the Atomic Workbench. To resolve runtime variables, you pass an object implementing the `AACRuntimeVariableDelegate` mixin to the parameter `runtimeVariableDelegate` when creating a stream container or a single card view.
 
 :::info Only string values
 
@@ -1193,10 +1299,10 @@ If you do not return the card list before the `runtimeVariableResolutionTimeout`
 ```dart
 import 'package:atomic_sdk_flutter/atomic_card_runtime_variable.dart';
 
-class MyCardRuntimeVariableDelegate extends AACRuntimeVariableDelegate {
-  
+class MyCardRuntimeVariableDelegate with AACRuntimeVariableDelegate {
+
   @override
-  Future<List<AACCardInstance>> requestRuntimeVariables(List<AACCardInstance> cardInstances) {    
+  Future<List<AACCardInstance>> requestRuntimeVariables(List<AACCardInstance> cardInstances) {
     for (AACCardInstance card in cardInstances) {
         // Resolve a runtime variable 'numberOfItems' to '12' on all cards.
         // You can also inspect `lifecycleId` and `cardInstanceId` to determine what type of card this is.
@@ -1259,7 +1365,7 @@ final embeddedFont =
 AACSession.registerEmbeddedFonts([embeddedFont]);
 ```
 
-## SDK Analytics
+## SDK Analytics {#sdk-analytics}
 
 :::info Default behavior
 
@@ -1306,10 +1412,10 @@ To clear this in-memory cache, call:
 ```dart
 import 'package:atomic_sdk_flutter/atomic_session.dart';
 
+// Logout example:
 await AACSession.logout();
 
-// Or in a way that installs callbacks (iOS only).
-
+// Here's an alternative example that handles any logout errors:
 AACSession.logout().then((value) {
     // Codes that execute after successfully logging out.
 }).onError((error, stackTrace) {
@@ -1338,7 +1444,7 @@ The following optional profile fields can be supplied to update the data for the
 Any fields which have not been supplied will remain unmodified after the user update.
 
 The following code snippet shows how to set up some profile fields:
-```Dart
+```dart
 final userSettings = AACUserSettings()
                       ..externalID = 'Flutter shell app ID'
                       ..name = 'Flutter user'
@@ -1352,9 +1458,9 @@ await AACSession.updateUser(userSettings);
 
 ### Setting up custom profile fields
 
-You can also setup your custom fields of the user profile. Custom fields **must** first be created in Atomic Workbench before updating them. For more details of custom fields, see [Custom Fields](https://documentation.atomic.io/workbench/customers#custom-fields).
+You can also setup your custom fields of the user profile. Custom fields **must** first be created in Atomic Workbench before updating them. For more details of custom fields, see [Custom Fields](https://documentation.atomic.io/guide/configuration/custom-fields).
 
-There are two types of custom fields: date and text. 
+There are two types of custom fields: date and text.
 - `userSettings.setDateForCustomField(DateTime dateTime, String customField)` for custom fields defined as type 'date' in the Atomic Workbench.
 - `userSettings.setTextForCustomField(String text, String customField)` for custom fields defined as type 'text' in the Atomic Workbench.
 
@@ -1362,7 +1468,7 @@ Note: Use the `name` property in the Workbench to identify a custom field, not t
 
 The following code snippet shows how to set up a `date` and a `text` field:
 
-```Dart
+```dart
 AACUserSettings()
   ..setTextForCustomField("Flutter!!", "fluttertext");
   ..setDateForCustomField(DateTime.now(), "flutterdate");
@@ -1378,8 +1484,7 @@ Each day accepts an list of notification time periods, these are periods during 
 
 The following code snippet shows how to set up notification periods between 8am - 5:30pm & 7pm - 10pm on Monday:
 
-```Dart
-
+```dart
 AACUserSettings().setNotificationTime(
   [
     AACUserNotificationTimeframe(
@@ -1405,7 +1510,7 @@ Hours are in the 24h format that must be between 0 & 23 inclusive, while minutes
 
 The following code snippet shows an example of using the `updateUser` method to update profile fields, custom profile fields and notification preferences.
 
-```Dart
+```dart
 final userSettings = AACUserSettings()
   ..externalID = 'Flutter shell app ID'
   ..name = 'Flutter user'
@@ -1442,16 +1547,17 @@ Though all fields of `AACUserSettings` are optional, you must supply at least on
 
 :::
 
-## Observing SDK events
+## Observing SDK events {#observe-sdk-events}
 
 The Atomic Flutter SDK provides functionality to observe SDK events that symbolize identifiable SDK activities such as card feed changes or user interactions with cards. The following code snippet shows how to observe SDK events.
-```Dart
+
+```dart
 AACSession.setSDKEventObserver((AACSDKEvent sdkEvent) {
   // do something with the sdkEvent
 });
 ```
 
-:::info 
+:::info
 
 Only **one** SDK event observer can be active at a time. If you call this method again, it will replace the previous observer. To remove the SDK event observer, set it to `null`.
 
@@ -1459,7 +1565,7 @@ Only **one** SDK event observer can be active at a time. If you call this method
 
 The SDK provides all observed events in the base class `AACSDKEvent`. Each event shares common information such as an `eventName`, `timestamp`, `indentifier`, and where appropriate, `userId` and `containerId`.
 
-An event has a corresponding `eventType` property taken from the `AACSDKEventType` enum. The properties for each event is different and dependant on the `eventType`, but they closely follow Atomic analytics events. The properties that are not applicable to the event's `eventType` are set to `null`. For detailed information about these events, please refer to [Analytics reference](https://documentation.atomic.io/advanced/analytics-reference#events). 
+An event has a corresponding `eventType` property taken from the `AACSDKEventType` enum. The properties for each event is different and dependant on the `eventType`, but they closely follow Atomic analytics events. The properties that are not applicable to the event's `eventType` are set to `null`. For detailed information about these events, please refer to [Analytics reference](https://documentation.atomic.io/guide/analytics/reference#events).
 
 | AACSDKEventType | Analytics | Description                                                             |
 | :-----------------| :-------- | :---------------------------------------------------------------------- |
@@ -1486,7 +1592,7 @@ An event has a corresponding `eventType` property taken from the `AACSDKEventTyp
 ### Observing SDK Events examples
 #### An example for logging every SDK event and their properties.
 
-```Dart
+```dart
 void logSdkEventsCallback(AACSDKEvent sdkEvent) {
       "${_getTimeMsg(sdkEvent.timestamp)}\neventType.name: ${sdkEvent.eventType.name},"
       "\nidentifier: ${sdkEvent.identifier},\nuserId: ${sdkEvent.userId},\ncardCount: ${sdkEvent.cardCount},"
@@ -1500,6 +1606,7 @@ void logSdkEventsCallback(AACSDKEvent sdkEvent) {
           "${newLineTab}subviewTitle: ${sdkEvent.properties!.subviewTitle},"
           "${newLineTab}subviewLevel: ${sdkEvent.properties!.subviewLevel},"
           "${newLineTab}linkMethod.name: ${sdkEvent.properties!.linkMethod?.name},"
+          "${newLineTab}detail.name: ${sdkEvent.properties!.detail?.name},"
           "${newLineTab}url: ${sdkEvent.properties!.url},"
           "${newLineTab}submittedValues: ${sdkEvent.properties!.submittedValues},"
           "${newLineTab}redirectPayload: ${sdkEvent.properties!.redirectPayload},"
@@ -1526,7 +1633,7 @@ AACSession.setSDKEventObserver(null);
 ```
 
 Example output for the `CardDisplayed` event, using the above callback:
-```
+```yaml
 [2024-01-30 08:07:00.000Z]
 eventType.name: CardDisplayed,
 identifier: <identifier will be here>,
@@ -1551,9 +1658,9 @@ streamContext: {
 #### An example for fetching unseen card number in realtime
 When your application will display the number of unseen cards on the app icon, it is crucial to ensure that this number stays current as the user navigates through cards. This way, when they return to the home screen, they see an up to date count of unseen cards. To make this possible, we must fetch the count of unseen cards in real time.
 
-You can obtain the count of unseen cards from [user metrics](https://documentation.atomic.io/sdks/flutter#retrieving-the-count-of-active-and-unseen-cards). However, since this is a singular call, we need to invoke this method repeatedly to keep the count current. By monitoring SDK events, we can update the unseen card count every time a card's viewed status changes. The code snippet below shows how to fetch the number of unseen cards for a container under these conditions.
+You can obtain the count of unseen cards from [user metrics](#retrieving-the-count-of-active-and-unseen-cards). However, since this is a singular call, we need to invoke this method repeatedly to keep the count current. By monitoring SDK events, we can update the unseen card count every time a card's viewed status changes. The code snippet below shows how to fetch the number of unseen cards for a container under these conditions.
 
-```Dart
+```dart
 AACSession.setSDKEventObserver((AACSDKEvent sdkEvent) {
   if (sdkEvent.eventType == AACSDKEventType.CardFeedUpdated || sdkEvent.eventType == AACSDKEventType.CardDisplayed) {
     final containerId = "<containerId>";
@@ -1570,7 +1677,7 @@ AACSession.setSDKEventObserver((AACSDKEvent sdkEvent) {
 #### An example for capturing the voting-down event
 The following code snippet shows how to capture an event when the user votes down for a card.
 
-```Dart
+```dart
 AACSession.setSDKEventObserver((AACSDKEvent sdkEvent) {
   if (sdkEvent.eventType == AACSDKEventType.CardVotedDown) {
     print("The user has voted down for the card ${sdkEvent.cardContext.cardInstanceId}")
@@ -1585,3 +1692,154 @@ AACSession.setSDKEventObserver((AACSDKEvent sdkEvent) {
   }
 });
 ```
+
+## Image linking to a URL
+
+*(Introduced in Flutter 24.2.0)*
+
+You can now use images for navigation purposes, such as directing to a web page, opening a subview, or sending a custom payload into the app, as if they were buttons. This functionality is accessible in Workbench, where you can assign custom actions to images on your cards.
+
+
+### The updated analytics event 'user-redirected'
+
+Redirection initiated by images also trigger the `user-redirected` analytics event. To accurately identify the origin of this event, a new `detail` property has been added, with four distinct values:
+
+- Image: The event was activated by an image.
+- LinkButton: A link button was the source of the event.
+- SubmitButton: The redirection was initiated via a submit button.
+- TextLink: The trigger was a link embedded within markdown text.
+
+See [Analytics](https://documentation.atomic.io/guide/analytics/overview) or [Analytics reference](https://documentation.atomic.io/guide/analytics/reference) for more details of the event `user-redirected`.
+
+In iOS SDK, you can also capture the new `detail` property via SDK event observer. The following code snippet shows how to parse this property.
+
+```dart
+import 'package:atomic_sdk_flutter/atomic_session.dart';
+import 'package:atomic_sdk_flutter/atomic_sdk_event.dart';
+
+await AACSession.setSDKEventObserver((AACSDKEvent sdkEvent) {
+  if (sdkEvent.eventType == AACSDKEventType.UserRedirected) {
+    switch (sdkEvent.properties?.detail) {
+      case AACSDKEventDetail.Image:
+        print("Event triggered by an image.");
+      case AACSDKEventDetail.LinkButton:
+        print("Event triggered by a link button.");
+      case AACSDKEventDetail.SubmitButton:
+        print("Event triggered by a submit button.");
+      case AACSDKEventDetail.TextLink:
+        print("Event triggered by a markdown link text.");
+      case AACSDKEventDetail.UnknownDetail:
+        print("Event triggered by an unknown component.");
+      case null:
+        print("There was no detail provided in this sdk event.");
+    }
+  }
+});
+```
+
+See the [Observing SDK events](#observe-sdk-events) section for more details on the event observer feature.
+
+### Capture image-triggered custom payload
+In the Atomic Workbench, the functionality for custom payload has expanded. Initially, you could create a submit or link button with a custom action payload. Now, this capability extends to images, allowing the use of an image with a custom payload to achieve similar interactive outcomes as you would with buttons.
+
+When such an image is tapped, the `didTapLinkButton` method is called on your action delegate (implementing the `AACStreamContainerActionDelegate` mixin).
+
+:::info Unified Handling Approach for Images and Link Buttons
+
+In this scenario, an image is treated similarly to a link button, meaning the same delegate method used for link buttons is applied to images as well.
+
+This approach streamlines the handling of user interactions with both elements, ensuring a concise behavior across the UI.
+
+:::
+
+The second parameter to this method is an action object, containing the payload that was defined in the Workbench for that button. You can use this payload to determine the action to take, within your app, when the image is tapped.
+
+The action object also contains the card instance ID and stream container ID where the custom action was triggered.
+
+The following code snippet navigates the user to the home screen upon receiving a specific payload.
+
+```dart
+class MyActionDelegate with AACStreamContainerActionDelegate {
+  // Provide context to your delegate.
+  MyActionDelegate(this.context);
+  final BuildContext context;
+
+  // Implement the link button callback from AACStreamContainerActionDelegate
+  @override
+  void didTapLinkButton(AACCardCustomAction action) {
+    // Check the payload.
+    final screenName = action.actionPayload["screenName"] as String?;
+    if (screenName != null && screenName == "home-screen") {
+      // First check if the the widget is still part of the widget tree.
+      if (context.mounted) {
+        // Navigate to the home screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => HomeScreen()),
+        );
+      }
+    }
+  }
+}
+```
+
+## Custom Icons {#custom-icons}
+
+*(Introduced in Flutter 24.2.0)*
+
+**Note**: Requires iOS 13 and above, or Android 5.0 and above.
+
+The SDK now supports the use of custom icons in card elements. When you are editing a card in the card template editor of the Workbench you will notice that for card elements that support it the [properties panel](https://documentation.atomic.io/guide/cards/creating#properties-panel-right) will show an "Include  icon" option. From this location you can select an icon to use, either from the Media Library or Font Awesome.
+
+Choosing to use an icon from the Media Library you have the ability to provide an SVG format icon and an optional fallback icon to be used in case the SVG fails to load. The "Select icon" dropdown will present any SVG format assets in your media library which can be used as a custom icon. To add an icon for use you can press the "Open Media Library" button at the bottom of the dropdown.
+
+### Custom icon colors
+
+The Workbench theme editor now provides the ability to set a color and opacity value for icons in each of the places where an icon may be used. The SDK will apply the following rules when determining what color the provided icon should be displayed in:
+
+- All icons will be displayed with the colors as dictated in the SVG file.
+- Black is used if no colors are specified in the SVG file.
+- Where a `currentColor` value is used in the SVG file, the following hierarchy is applied:
+    1. Use the icon theme color if this has been supplied.
+    2. Use the color of the text associated with the icon.
+    3. Use a default black color.
+
+### Custom icon sizing
+
+The custom icon will be rendered in a square icon container with a width & height in pixels equal to the font size of the associated text. Your supplied SVG icon will be rendered centered inside this icon container, at its true size until it is constrained by the size of container, at which point it will scale down to fit.
+
+### Fallback Rules
+
+There are two scenarios where a fallback could occur for an SVG icon:
+
+1. If the provided SVG image is inaccessible due to a broken URL or network issues, such as those caused by certificate pinning.
+2. If the SVG icon is not supported on iOS/Android. Currently, SVG features are not fully supported in the iOS/Android SDK, so please check with our support team for details on supported SVG images.
+
+In these scenarios, the following fallback rules apply:
+
+1. The fallback FontAwesome icon is used if it is set in Atomic Workbench for this custom icon.
+2. Otherwise, a default placeholder image is displayed.
+
+## Multiple display heights {#multiple-display-height-media}
+
+*(Introduced in 24.2.0)*
+
+You can now specify different display heights in Atomic Workbench for banner and inline media components. There are four options, each of which defines how the thumbnail cover of that media is displayed.
+
+- **Tall** The thumbnail cover is 200 display points high, spanning the whole width and cropped as necessary. This is the default value and matches existing media components.
+- **Medium** The same as "Tall", but only 120 display points high.
+- **Short** The same as "Tall" but 50 display points high. Not supported for inline or banner videos.
+- **Original** The thumbnail cover will maintain its original aspect ratio, adjusting the height dynamically based on the width of the card to avoid any cropping.
+
+**Note**: For older versions of the SDK, all options will fall back to "Tall".
+
+### Retrieving the image dimensions using an API-driven card container
+To get the display height types (`"tall"`, `"medium"`, `"short"`, or `"original"`) with API-driven card containers, you can use `node.attributes["dimensions"]["height"]`.  See the [API-driven card containers](#api-driven-card-containers) section for more information about node attributes.
+
+:::warning Original Dimensions
+On Android, if the display height type is `"original"`, you might notice that you can also retrieve the original image dimensions using `node.attributes["dimensions"]["originalDimensions"]` which will give you a map, for example: `{"width": 340.0, "height": 200.0}`. However, please note that while this property is exposed in the JSON, it is only intended for internal use. So this property isn't guaranteed to return values.
+
+In iOS the internal `originalDimensions` is not present at all. 
+
+To retrieve the original image dimensions, you can get the url of the original image with `node.attributes["url"]` or `node.attributes["thumbnailUrl"]`, then check the size of that image.
+:::

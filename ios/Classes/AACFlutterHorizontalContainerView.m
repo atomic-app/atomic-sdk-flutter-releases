@@ -96,7 +96,9 @@
     
     [self.containerViewController.view addConstraints:hConstraints];
     [self.containerViewController.view addConstraints:vConstraints];
-    [self.channel invokeMethod:@"viewLoaded" arguments:nil];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.channel invokeMethod:@"viewLoaded" arguments:nil];
+    });
 }
 
 - (void)dealloc {
@@ -116,11 +118,13 @@
     CGSize adjustedSize = CGSizeMake(newSize.width, MAX(1, newSize.height));
     
     [self.horizontalContainerView layoutIfNeeded];
-    [self.channel invokeMethod:@"sizeChanged"
-                     arguments:@{
-                         @"width": @(adjustedSize.width),
-                         @"height": @(adjustedSize.height)
-                     }];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.channel invokeMethod:@"sizeChanged"
+                         arguments:@{
+                             @"width": @(adjustedSize.width),
+                             @"height": @(adjustedSize.height)
+                         }];
+    });
 }
 
 - (void)applyFilters:(NSArray<AACCardFilter *> *)filters {

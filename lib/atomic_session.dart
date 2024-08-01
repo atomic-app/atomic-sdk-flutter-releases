@@ -4,7 +4,6 @@ import 'dart:developer';
 import 'package:atomic_sdk_flutter/atomic_card_filter.dart';
 import 'package:atomic_sdk_flutter/atomic_data_interface.dart';
 import 'package:atomic_sdk_flutter/atomic_embedded_font.dart';
-import 'package:atomic_sdk_flutter/atomic_event_payload.dart';
 import 'package:atomic_sdk_flutter/atomic_sdk_event.dart';
 import 'package:atomic_sdk_flutter/atomic_stream_container.dart';
 import 'package:atomic_sdk_flutter/src/atomic_literals.dart';
@@ -218,7 +217,6 @@ class AACSession {
             break;
           }
           _sdkEventObserver?.call(sdkEvent);
-          break;
         case 'cardCountChanged':
           if (args == null) {
             break;
@@ -233,7 +231,6 @@ class AACSession {
             break;
           }
           _cardCountObservers[identifier]?.call(args['cardCount'] as int);
-          break;
         case 'onStreamContainerObserved':
           if (args == null) {
             break;
@@ -272,7 +269,6 @@ class AACSession {
           }
 
           _streamContainerObservers[token]?.call(cards);
-          break;
         case 'authTokenRequested':
           if (args == null) {
             break;
@@ -320,7 +316,6 @@ class AACSession {
               context: aac_error_auth_token_context,
             );
           }
-          break;
         default:
           throw MissingPluginException("No handler for method ${call.method}");
       }
@@ -583,25 +578,6 @@ class AACSession {
       );
       rethrow;
     }
-  }
-
-  /// Triggers an event on the Atomic Platform, exclusively for the user identified by by the authentication token returned by the
-  /// session delegate that is registered when initiating the SDK.
-  ///
-  /// Events must opt-in to be triggered from the SDK. To opt-in, turn on the 'Enable client trigger' option in the Atomic Workbench
-  /// for the event.
-  ///
-  /// - [payload] represents the event payload used to trigger the event.
-  ///
-  /// If the request succeeds, details of the processed event are provided with an [AACEventResponse] object, otherwise an error is thrown out.
-  @Deprecated(
-    'The feature `send event` is deprecated and no longer used by Atomic Workbench.',
-  )
-  static Future<AACEventResponse> sendEvent(AACEventPayload payload) async {
-    var result = (await _sessionChannel
-        .invokeMethod('sendEvent', [payload.toJson()])) as Map?;
-    result ??= {};
-    return AACEventResponse.fromJson(result.cast<String, dynamic>());
   }
 
   /// Asks the SDK to return the number of cards for the given stream container.

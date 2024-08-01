@@ -16,8 +16,8 @@
             }
             
         }
-        completionHandler(cardsToResolve);
     }
+    completionHandler(cardsToResolve);
 }
 
 - (instancetype)initWithRuntimeVariables:(NSDictionary<NSString *, NSString *> * _Nullable)runtimeVariables {

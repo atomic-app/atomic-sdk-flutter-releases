@@ -2,6 +2,8 @@ package io.atomic.atomic_sdk_flutter
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.res.Resources
+import android.util.TypedValue
 import android.view.View
 import androidx.fragment.app.FragmentActivity
 import com.atomic.actioncards.feed.data.model.AACCardEvent
@@ -12,6 +14,7 @@ import com.atomic.actioncards.sdk.VotingOption
 import io.atomic.atomic_sdk_flutter.helpers.AACFlutterWrapperFragment
 import io.atomic.atomic_sdk_flutter.model.AACContainerSettings
 import io.atomic.atomic_sdk_flutter.utils.FilterApplier
+import io.atomic.atomic_sdk_flutter.utils.MeasureUtils
 import io.atomic.atomic_sdk_flutter.utils.asListOfType
 import io.atomic.atomic_sdk_flutter.utils.asStringMapOfType
 import io.flutter.plugin.common.BinaryMessenger
@@ -167,6 +170,8 @@ internal open class AACFlutterStreamContainer(
               )
             )
           }
+
+          cardMaxWidth = MeasureUtils.dpToPx(context.resources.displayMetrics.density, settings.cardMaxWidth)
         }
       }
 

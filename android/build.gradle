@@ -2,7 +2,7 @@ group 'io.atomic.atomic_sdk_flutter'
 version '1.0-SNAPSHOT'
 
 buildscript {
-    ext.kotlin_version = '1.6.10'
+    ext.kotlin_version = '1.7.21'
     repositories {
         google()
         mavenCentral()
@@ -40,7 +40,7 @@ android {
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation "io.atomic.actioncards:aacsdk:23.4.0"
+    implementation "io.atomic.actioncards:aacsdk:24.2.1"
     implementation 'com.google.android.material:material:1.9.0'
     implementation "com.squareup.moshi:moshi-kotlin:1.15.0"
     // NOTICE these lines are just for me to edit native android in android studio. Comment out when building flutter app

@@ -1,11 +1,144 @@
-import 'package:atomic_sdk_flutter/atomic_card_event.dart';
 import 'package:atomic_sdk_flutter/atomic_card_runtime_variable.dart';
-import 'package:atomic_sdk_flutter/atomic_container_view_state.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
+import 'package:atomic_sdk_flutter/src/atomic_view.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+
+/// Creates an Atomic stream container, rendering a list of cards.
+/// You must supply a `containerId` and `configuration` object.
+final class AACStreamContainer extends AACView {
+  const AACStreamContainer({
+    required super.containerId,
+    required super.configuration,
+    super.key,
+    super.runtimeVariableDelegate,
+    super.actionDelegate,
+    super.eventDelegate,
+    super.onViewLoaded,
+  });
+}
+
+/// Implement this mixin to provide a session delegate that supplies authentication tokens
+/// when requested by the SDK.
+/// The method [authToken] must be implemented, and is used to supply an authentication token to the SDK.
+/// If you do not supply a valid authentication token, API requests within the SDK will fail.
+mixin AACSessionDelegate {
+  /// Called when the SDK has requested an authentication token.
+  Future<String?> authToken();
+}
+
+/// Implements logic to resolve runtime variables on cards, when requested by the SDK.
+///
+mixin AACRuntimeVariableDelegate {
+  /// Delegate method that can be implemented when one or more cards include runtime variables.
+  /// If the card includes runtime variables to be resolved, the SDK will call this method to ask that you resolve them.
+  /// If this method is not implemented, or you do not resolve a given variable, the default values for that variable
+  /// will be used (as defined in the Atomic Workbench).
+  /// Variables are resolved on each card by calling `resolveRuntimeVariableWithName:value:`.
+  ///
+  /// - [cardInstances] An array of cards containing runtime variables that need to be resolved.
+  Future<List<AACCardInstance>?> requestRuntimeVariables(
+    List<AACCardInstance> cardInstances,
+  ) async {
+    return null;
+  }
+}
+
+/// Represents a custom action triggered by a link button or submit button on a card.
+class AACCardCustomAction {
+  const AACCardCustomAction({
+    required this.cardInstanceId,
+    required this.containerId,
+    required this.actionPayload,
+  });
+
+  /// The instance ID of the card where the action was triggered.
+  final String cardInstanceId;
+
+  /// The ID of the stream container that the card is contained within.
+  final String containerId;
+
+  /// A custom action payload that is associated with the link/submit button.
+  /// Inspect the data in this payload to determine which action to take.
+  final Map<String, dynamic> actionPayload;
+}
+
+/**
+ * Represents an instance of a filter that can be applied to a list of cards.
+ */
+
+/// Implement this mixin to provide a delegate that responds to the event of tapping the
+/// action button.
+mixin AACStreamContainerActionDelegate {
+  /// The user tapped on the button in the top left of the stream container.
+  ///
+  /// This method is only called when the `presentationStyle` of the stream container is set
+  /// to [AACPresentationStyle.withActionButton].
+  void didTapActionButton() {}
+
+  /// The user tapped on a link button, which is configured with a custom [action] in the Atomic Workbench.
+  ///
+  /// The [action] object provided here includes a payload - a set of key-value pairs assigned in the Workbench to this link button.
+  /// Use the information in this object to determine which action to take in your app.
+  void didTapLinkButton(AACCardCustomAction action) {}
+
+  ///  The user submitted a card from a submit button that is configured with a custom [action] in the Atomic Workbench.
+  ///  The [action] object provided here includes a payload - a set of key-value pairs assigned in the Workbench to this submit button.
+  ///  Use the information in this object to determine which action to take in your app after the card has been submitted.
+  void didTapSubmitButton(AACCardCustomAction action) {}
+}
+
+/// Configuration object that allows integrators to tailor the stream container.
+class AACStreamContainerConfiguration {
+  int pollingInterval = 15;
+  AACVotingOption votingOption = AACVotingOption.none;
+  AACStreamContainerLaunchColors launchColors =
+      AACStreamContainerLaunchColors();
+  AACInterfaceStyle interfaceStyle = AACInterfaceStyle.automatic;
+  Map<AACCustomString, String> customStrings = {};
+  AACPresentationStyle presentationStyle = AACPresentationStyle.withoutButton;
+  AACUIElement enabledUiElements = AACUIElement.defaultValue;
+  int runtimeVariableResolutionTimeout = 5;
+  AACFeatureFlags features = AACFeatureFlags();
+
+  /// cardMaxWidth is an additional property, added in Atomic's Flutter SDK version 24.2.0.
+  /// It is used to restrict the width of the card, with center alignment.
+  /// There are a few considerations for using this property:
+  /// - The default value of cardMaxWidth is 0 and will use the container's width.
+  /// - On iOS, it's advised not to set the cardMaxWidth to less than 200 to avoid layout constraint warnings due to possible insufficient space for the content within the cards.
+  /// - If cardMaxWidth is larger than the stream container, it will be ignored and the container's width will be used.
+  /// - If cardMaxWidth is set to zero or a negative number, the value will also be ignored and the container's width will be used.
+  /// - In horizontal stream containers, the cardMaxWidth property behaves the same as the cardWidth property, and must be > 0.
+  int cardMaxWidth = 0;
+
+  Map<String, dynamic> toJson() {
+    final jsonValue = {
+      'pollingInterval': pollingInterval,
+      'cardVotingOptions': votingOption.stringValue,
+      'launchColors': launchColors,
+      'interfaceStyle': interfaceStyle.stringValue,
+      'presentationStyle': presentationStyle.stringValue,
+      'enabledUiElements': enabledUiElements.toJson,
+      'runtimeVariableResolutionTimeout': runtimeVariableResolutionTimeout,
+      'runtimeVariableAnalytics': features.runtimeVariableAnalytics,
+      'cardMaxWidth': cardMaxWidth,
+    };
+    if (customStrings.isNotEmpty) {
+      jsonValue['customStrings'] =
+          customStrings.map((key, value) => MapEntry(key.stringValue, value));
+    }
+    return jsonValue;
+  }
+
+  /// Assigns the given value to the custom string defined by the given key.
+  /// `value` must be non-empty.
+  void setValueForCustomString(AACCustomString key, String value) {
+    if (value.isEmpty) {
+      // Don't allow empty strings.
+      return;
+    }
+    customStrings[key] = value;
+  }
+}
 
 /// Supported options for card voting.
 enum AACVotingOption { none, useful, notUseful, both }
@@ -22,6 +155,26 @@ extension VotingOptionSerialised on AACVotingOption {
       case AACVotingOption.both:
         return 'both';
     }
+  }
+}
+
+/// Object that stores customisable colours for first time launch, before a
+/// theme has been loaded.
+class AACStreamContainerLaunchColors {
+  Color background = const Color.fromRGBO(255, 255, 255, 1);
+  Color loadingIndicator = const Color.fromRGBO(0, 0, 0, 1);
+  Color button = const Color.fromRGBO(0, 0, 0, 1);
+  Color text = const Color.fromRGBO(0, 0, 0, 0.5);
+  Color statusBarBackground = const Color.fromRGBO(0, 0, 0, 1);
+
+  Map<String, dynamic> toJson() {
+    return {
+      'background': background.value,
+      'loadingIndicator': loadingIndicator.value,
+      'button': button.value,
+      'text': text.value,
+      "statusBarBackground": statusBarBackground.value,
+    };
   }
 }
 
@@ -222,398 +375,4 @@ class AACFeatureFlags {
   /// When setting this flag to `true`, ensure that the resolved values of your runtime variables
   /// do not include any sensitive information that should not appear in analytics.
   bool runtimeVariableAnalytics = false;
-}
-
-/// Configuration object that allows integrators to tailor the stream container.
-class AACStreamContainerConfiguration {
-  int pollingInterval = 15;
-  AACVotingOption votingOption = AACVotingOption.none;
-  AACStreamContainerLaunchColors launchColors =
-      AACStreamContainerLaunchColors();
-  AACInterfaceStyle interfaceStyle = AACInterfaceStyle.automatic;
-  Map<AACCustomString, String> customStrings = {};
-  AACPresentationStyle presentationStyle = AACPresentationStyle.withoutButton;
-  AACUIElement enabledUiElements = AACUIElement.defaultValue;
-  int runtimeVariableResolutionTimeout = 5;
-  AACFeatureFlags features = AACFeatureFlags();
-
-  Map<String, dynamic> toJson() {
-    final jsonValue = {
-      'pollingInterval': pollingInterval,
-      'cardVotingOptions': votingOption.stringValue,
-      'launchColors': launchColors,
-      'interfaceStyle': interfaceStyle.stringValue,
-      'presentationStyle': presentationStyle.stringValue,
-      'enabledUiElements': enabledUiElements.toJson,
-      'runtimeVariableResolutionTimeout': runtimeVariableResolutionTimeout,
-      'runtimeVariableAnalytics': features.runtimeVariableAnalytics,
-    };
-    if (customStrings.isNotEmpty) {
-      jsonValue['customStrings'] =
-          customStrings.map((key, value) => MapEntry(key.stringValue, value));
-    }
-    return jsonValue;
-  }
-
-  /// Assigns the given value to the custom string defined by the given key.
-  /// `value` must be non-empty.
-  void setValueForCustomString(AACCustomString key, String value) {
-    if (value.isEmpty) {
-      // Don't allow empty strings.
-      return;
-    }
-    customStrings[key] = value;
-  }
-}
-
-/// Specialised configuration object for use with a single card view.
-class AACSingleCardConfiguration extends AACStreamContainerConfiguration {
-  /// Whether the single card view should automatically display the next card in the list, if there is one,
-  /// once the current card is actioned.
-  /// Defaults to `false`.
-  bool automaticallyLoadNextCard = false;
-
-  @override
-  Map<String, dynamic> toJson() {
-    final jsonValue = super.toJson();
-    jsonValue["automaticallyLoadNextCard"] = automaticallyLoadNextCard;
-    return jsonValue;
-  }
-}
-
-/// The style of empty state (when there are no cards) for the horizontal container.
-enum AACHorizontalContainerConfigurationEmptyStyle {
-  /// The horizontal container should always display a no card user interface.
-  standard("standard"),
-
-  /// The horizontal container should shrink itself when there are no cards.
-  shrink("shrink");
-
-  const AACHorizontalContainerConfigurationEmptyStyle(this.value);
-  final String value;
-}
-
-/// Options that specify the alignment of the title in the horizontal header.
-enum AACHorizontalContainerConfigurationHeaderAlignment {
-  /// The title is aligned in the middle of the header.
-  center("center"),
-
-  /// The title is aligned to the left of the header.
-  left("left");
-
-  const AACHorizontalContainerConfigurationHeaderAlignment(this.value);
-  final String value;
-}
-
-/// Options that control the alignment of the last card in the horizontal container.
-/// This option only applies when there is only one card in the container.
-enum AACHorizontalContainerConfigurationLastCardAlignment {
-  /// The last card is aligned to the left of the container.
-  left("left"),
-
-  /// The last card is aligned in the middle of the container.
-  center("center");
-
-  const AACHorizontalContainerConfigurationLastCardAlignment(this.value);
-  final String value;
-}
-
-/// Options that control the scroll mode of the horizontal container.
-enum AACHorizontalContainerConfigurationScrollMode {
-  /// The container scrolls over one card at a time, where applicable the card is placed
-  /// in the middle of the view port when the scroll terminates.
-  snap("snap"),
-
-  /// The container scrolls freely.
-  free("free");
-
-  const AACHorizontalContainerConfigurationScrollMode(this.value);
-  final String value;
-}
-
-/// Specialised configuration object for use with a horizontal container view.
-class AACHorizontalContainerConfiguration
-    extends AACStreamContainerConfiguration {
-  AACHorizontalContainerConfiguration({
-    required this.cardWidth,
-  });
-
-  /// The width of every card displayed in the horizontal container view.
-  final double cardWidth;
-
-  /// The empty style of a horizontal container view. It determines how the view displays
-  /// when there are no cards. Defaults to [AACHorizontalContainerConfigurationEmptyStyle.standard].
-  AACHorizontalContainerConfigurationEmptyStyle emptyStyle =
-      AACHorizontalContainerConfigurationEmptyStyle.standard;
-
-  /// The option for aligning the title of the header horizontally.
-  /// Defaults to [AACHorizontalContainerConfigurationHeaderAlignment.center].
-  AACHorizontalContainerConfigurationHeaderAlignment headerAlignment =
-      AACHorizontalContainerConfigurationHeaderAlignment.center;
-
-  /// The option for aligning the last card in a horizontal container.
-  /// Defaults to [AACHorizontalContainerConfigurationLastCardAlignment.left].
-  AACHorizontalContainerConfigurationLastCardAlignment lastCardAlignment =
-      AACHorizontalContainerConfigurationLastCardAlignment.left;
-
-  /// The option for controlling the scroll mode of the container. Defaults to [AACHorizontalContainerConfigurationScrollMode.snap].
-  AACHorizontalContainerConfigurationScrollMode scrollMode =
-      AACHorizontalContainerConfigurationScrollMode.snap;
-
-  @override
-  Map<String, dynamic> toJson() {
-    final jsonValue = super.toJson();
-    jsonValue["cardWidth"] = cardWidth;
-    jsonValue["emptyStyle"] = emptyStyle.value;
-    jsonValue["headerAlignment"] = headerAlignment.value;
-    jsonValue["lastCardAlignment"] = lastCardAlignment.value;
-    jsonValue["scrollMode"] = scrollMode.value;
-    return jsonValue;
-  }
-}
-
-/// Object that stores customisable colours for first time launch, before a
-/// theme has been loaded.
-class AACStreamContainerLaunchColors {
-  Color background = const Color.fromRGBO(255, 255, 255, 1);
-  Color loadingIndicator = const Color.fromRGBO(0, 0, 0, 1);
-  Color button = const Color.fromRGBO(0, 0, 0, 1);
-  Color text = const Color.fromRGBO(0, 0, 0, 0.5);
-  Color statusBarBackground = const Color.fromRGBO(0, 0, 0, 1);
-
-  Map<String, dynamic> toJson() {
-    return {
-      'background': background.value,
-      'loadingIndicator': loadingIndicator.value,
-      'button': button.value,
-      'text': text.value,
-      "statusBarBackground": statusBarBackground.value,
-    };
-  }
-}
-
-/// Extend this class to provide a session delegate that supplies authentication tokens
-/// when requested by the SDK.
-/// The method [authToken] must be implemented, and is used to supply an authentication token to the SDK.
-/// If you do not supply a valid authentication token, API requests within the SDK will fail.
-abstract class AACSessionDelegate {
-  /// Called when the SDK has requested an authentication token.
-  Future<String?> authToken();
-}
-
-/// Implements logic to resolve runtime variables on cards, when requested by the SDK.
-///
-abstract class AACRuntimeVariableDelegate {
-  /// Delegate method that can be implemented when one or more cards include runtime variables.
-  /// If the card includes runtime variables to be resolved, the SDK will call this method to ask that you resolve them.
-  /// If this method is not implemented, or you do not resolve a given variable, the default values for that variable
-  /// will be used (as defined in the Atomic Workbench).
-  /// Variables are resolved on each card by calling `resolveRuntimeVariableWithName:value:`.
-  ///
-  /// - [cardInstances] An array of cards containing runtime variables that need to be resolved.
-  Future<List<AACCardInstance>?> requestRuntimeVariables(
-    List<AACCardInstance> cardInstances,
-  ) async {
-    return null;
-  }
-}
-
-/// Represents a custom action triggered by a link button or submit button on a card.
-class AACCardCustomAction {
-  const AACCardCustomAction({
-    required this.cardInstanceId,
-    required this.containerId,
-    required this.actionPayload,
-  });
-
-  /// The instance ID of the card where the action was triggered.
-  final String cardInstanceId;
-
-  /// The ID of the stream container that the card is contained within.
-  final String containerId;
-
-  /// A custom action payload that is associated with the link/submit button.
-  /// Inspect the data in this payload to determine which action to take.
-  final Map<String, dynamic> actionPayload;
-}
-
-/**
- * Represents an instance of a filter that can be applied to a list of cards.
- */
-
-/// Extend this class to provide a delegate that responds to the event of tapping the
-/// action button.
-abstract class AACStreamContainerActionDelegate {
-  /// The user tapped on the button in the top left of the stream container.
-  ///
-  /// This method is only called when the `presentationStyle` of the stream container is set
-  /// to [AACPresentationStyle.withActionButton].
-  void didTapActionButton() {}
-
-  /// The user tapped on a link button, which is configured with a custom [action] in the Atomic Workbench.
-  ///
-  /// The [action] object provided here includes a payload - a set of key-value pairs assigned in the Workbench to this link button.
-  /// Use the information in this object to determine which action to take in your app.
-  void didTapLinkButton(AACCardCustomAction action) {}
-
-  ///  The user submitted a card from a submit button that is configured with a custom [action] in the Atomic Workbench.
-  ///  The [action] object provided here includes a payload - a set of key-value pairs assigned in the Workbench to this submit button.
-  ///  Use the information in this object to determine which action to take in your app after the card has been submitted.
-  void didTapSubmitButton(AACCardCustomAction action) {}
-}
-
-/// Creates an Atomic stream container, rendering a list of cards.
-/// You must supply a `containerId` and `configuration` object.
-class AACStreamContainer extends StatefulWidget {
-  const AACStreamContainer({
-    required this.containerId,
-    required this.configuration,
-    super.key,
-    this.runtimeVariableDelegate,
-    this.actionDelegate,
-    this.eventDelegate,
-    this.onViewLoaded,
-  });
-  final String containerId;
-  final AACStreamContainerConfiguration configuration;
-  final AACRuntimeVariableDelegate? runtimeVariableDelegate;
-  final AACStreamContainerActionDelegate? actionDelegate;
-  final AACCardEventDelegate? eventDelegate;
-  final void Function(AACStreamContainerState containerState)? onViewLoaded;
-
-  @override
-  AACStreamContainerState createState() => AACStreamContainerState();
-}
-
-class AACStreamContainerState
-    extends AACContainerViewState<AACStreamContainer> {
-  AndroidViewController? _androidController;
-
-  @override
-  String get viewType => 'io.atomic.sdk.streamContainer';
-
-  @override
-  void dispose() {
-    _androidController?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final creationParams = <String, dynamic>{
-      "containerId": widget.containerId,
-      "configuration": widget.configuration,
-    };
-
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return PlatformViewLink(
-          viewType: viewType,
-          surfaceFactory:
-              (BuildContext context, PlatformViewController controller) {
-            return AndroidViewSurface(
-              controller: controller as AndroidViewController,
-              gestureRecognizers: const <Factory<
-                  OneSequenceGestureRecognizer>>{},
-              hitTestBehavior: PlatformViewHitTestBehavior.opaque,
-            );
-          },
-          onCreatePlatformView: (PlatformViewCreationParams params) {
-            return _androidController =
-                PlatformViewsService.initExpensiveAndroidView(
-              id: params.id,
-              viewType: viewType,
-              layoutDirection: TextDirection.ltr,
-              creationParams: creationParams,
-              creationParamsCodec: const JSONMessageCodec(),
-            )
-                  ..addOnPlatformViewCreatedListener(
-                    params.onPlatformViewCreated,
-                  )
-                  ..addOnPlatformViewCreatedListener(createMethodChannel);
-          },
-        );
-      case TargetPlatform.iOS:
-        return UiKitView(
-          viewType: viewType,
-          layoutDirection: TextDirection.ltr,
-          creationParams: creationParams,
-          gestureRecognizers: <Factory<PanGestureRecognizer>>{}..add(
-              const Factory<PanGestureRecognizer>(PanGestureRecognizer.new),
-            ),
-          onPlatformViewCreated: createMethodChannel,
-          creationParamsCodec: const JSONMessageCodec(),
-        );
-      case TargetPlatform.fuchsia:
-      case TargetPlatform.linux:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-        throw UnsupportedError(
-          'The Atomic SDK Flutter wrapper supports iOS and Android only.',
-        );
-    }
-  }
-
-  @override
-  Future<dynamic> handleMethodCall(MethodCall call) async {
-    final args = (call.arguments as Map?)?.cast<String, dynamic>();
-    switch (call.method) {
-      case 'viewLoaded':
-        // Indicate that the native container has been completely loaded
-        widget.onViewLoaded?.call(this);
-        break;
-      case 'didTapActionButton':
-        widget.actionDelegate?.didTapActionButton();
-        break;
-      case 'didTapLinkButton':
-        if (widget.actionDelegate != null && args != null) {
-          final action = AACCardCustomAction(
-            cardInstanceId: args["cardInstanceId"] as String,
-            containerId: args["containerId"] as String,
-            actionPayload:
-                (args["actionPayload"] as Map).cast<String, dynamic>(),
-          );
-          widget.actionDelegate!.didTapLinkButton(action);
-        }
-        break;
-      case 'didTapSubmitButton':
-        if (widget.actionDelegate != null && args != null) {
-          final action = AACCardCustomAction(
-            cardInstanceId: args["cardInstanceId"] as String,
-            containerId: args["containerId"] as String,
-            actionPayload:
-                (args["actionPayload"] as Map).cast<String, dynamic>(),
-          );
-          widget.actionDelegate!.didTapSubmitButton(action);
-        }
-        break;
-      case 'requestRuntimeVariables':
-        final cards = <AACCardInstance>[];
-        if (args == null) {
-          break;
-        }
-        final cardsToResolveRaw = args['cardsToResolve'] as Iterable;
-        for (final cardJson in cardsToResolveRaw) {
-          final card = AACCardInstance.fromJson(
-            (cardJson as Map).cast<String, dynamic>(),
-          );
-          cards.add(card);
-        }
-        final results = await widget.runtimeVariableDelegate
-            ?.requestRuntimeVariables(cards);
-        if (results != null) {
-          return results.map((e) => e.toJson()).toList();
-        } else {
-          return cards.map((e) => e.toJson()).toList();
-        }
-      case 'didTriggerCardEvent':
-        if (widget.eventDelegate != null && args != null) {
-          final event = AACCardEvent.fromJson(
-            (args['cardEvent'] as Map).cast<String, dynamic>(),
-          );
-          widget.eventDelegate!.didTriggerCardEvent(event);
-        }
-        break;
-    }
-  }
 }

@@ -217,7 +217,6 @@ class AACViewNode {
     required this.type,
     required this.children,
     required this.attributes,
-    required this.validations,
   });
   factory AACViewNode._fromJson(Map<String, dynamic> nodeJson) {
     final type = nodeJson["type"] as String;
@@ -230,20 +229,10 @@ class AACViewNode {
     }
 
     final attributes = (nodeJson["attributes"] as Map).cast<String, dynamic>();
-
-    final validations = <String, AACValidation>{};
-    (nodeJson["validations"] as Map)
-        .cast<String, Map<dynamic, dynamic>>()
-        .forEach((validationKey, validationsAttributes) {
-      validations[validationKey] = AACValidation(
-        attributes: validationsAttributes.cast<String, dynamic>(),
-      );
-    });
     return AACViewNode(
       type: type,
       children: children,
       attributes: attributes,
-      validations: validations,
     );
   }
 
@@ -254,17 +243,6 @@ class AACViewNode {
   final List<AACViewNode> children;
 
   /// The attributes of this node - each type of node has a different set of attributes.
-  final Map<String, dynamic> attributes;
-
-  /// The validations for this node that determines whether that input is valid or invalid.
-  final Map<String, AACValidation> validations;
-}
-
-/// Represents a validation that determines whether that input is valid or invalid.
-@immutable
-class AACValidation {
-  const AACValidation({required this.attributes});
-
   final Map<String, dynamic> attributes;
 }
 
@@ -343,13 +321,13 @@ class AACSwippableCardActionProperties extends AACCardActionProperties {
 }
 
 @immutable
-abstract class AACCardAction {
+sealed class AACCardAction {
   /// A custom action payload that is associated with the action.
   dynamic get arg;
 
   AACCardActionType get type;
 
-  /// An [AACCardAction] for Dismissing a card with [AACSession.executeAction].
+  /// An [AACCardAction] for Dismissing a card with [AACSession.executeCardAction].
   /// The [arg] property is not applicable for this type of [AACCardAction], and will always return `null`.
   // ignore: prefer_constructors_over_static_methods
   static AACDismissCardAction dismiss() => AACDismissCardAction();
@@ -357,8 +335,14 @@ abstract class AACCardAction {
   /// An [AACCardAction] for Submitting a card with [AACSession.executeCardAction].
   /// The [arg] property contains the submitted values that are associated with a link button.
   // ignore: prefer_constructors_over_static_methods
-  static AACSubmitCardAction submit(Map<String, Object> submittedValues) =>
-      AACSubmitCardAction(submittedValues: submittedValues);
+  static AACSubmitCardAction submit(
+    String buttonName,
+    Map<String, Object> submittedValues,
+  ) =>
+      AACSubmitCardAction(
+        buttonName: buttonName,
+        submittedValues: submittedValues,
+      );
 
   /// An [AACCardAction] for Snoozing a card with [AACSession.executeCardAction].
   /// The [arg] property contains the snooze interval.
@@ -407,10 +391,13 @@ class AACDismissCardAction extends AACCardAction {
 @immutable
 class AACSubmitCardAction extends AACCardAction {
   AACSubmitCardAction({
+    required String buttonName,
     required Map<String, Object> submittedValues,
   }) {
+    _buttonName = buttonName;
     _submittedValues = submittedValues;
   }
+  late final String _buttonName;
   late final Map<String, dynamic> _submittedValues;
 
   @override
@@ -420,8 +407,8 @@ class AACSubmitCardAction extends AACCardAction {
 
   /// The submitted values that are associated with the link button.
   @override
-  Map<String, dynamic> get arg {
-    return _submittedValues;
+  List<dynamic> get arg {
+    return [_buttonName, _submittedValues];
   }
 }
 

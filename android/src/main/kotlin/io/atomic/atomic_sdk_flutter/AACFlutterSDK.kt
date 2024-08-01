@@ -10,8 +10,6 @@ import com.atomic.actioncards.sdk.AACCardActionResult
 import com.atomic.actioncards.sdk.AACSDK
 import com.atomic.actioncards.sdk.AACSDKLogoutResult
 import com.atomic.actioncards.sdk.AACStreamContainer
-import com.atomic.actioncards.sdk.events.AACEventPayload
-import com.atomic.actioncards.sdk.events.AACProcessedEvent
 import com.atomic.actioncards.sdk.notifications.AACSDKRegistrationCallback
 import io.atomic.atomic_sdk_flutter.utils.FilterApplier
 import io.flutter.plugin.common.MethodChannel.Result
@@ -75,38 +73,6 @@ class AACFlutterSDK {
         }
       }
     }
-  }
-
-  fun sendEvent(eventPayload: AACEventPayload, result: Result) {
-    AACSDK.sendEvent(eventPayload, object : AACSDK.SendEventListener {
-      override fun onSuccess(batchId: String, processedEvents: Array<AACProcessedEvent>) {
-        // Handle success case - the batch ID and processed events are supplied.
-        val processedEventsRaw = mutableListOf<Map<String, *>>()
-        for (processedEvent in processedEvents) {
-          processedEventsRaw.add(
-            mapOf(
-              "name" to processedEvent.name,
-              "lifecycleId" to processedEvent.lifecycleId,
-              "version" to processedEvent.version
-            )
-          )
-        }
-        CoroutineScope(Dispatchers.Main + NonCancellable).launch {
-          result.success(mapOf("batchId" to batchId, "processedEvents" to processedEventsRaw))
-        }
-      }
-
-      override fun onError(e: Exception) {
-        CoroutineScope(Dispatchers.Main + NonCancellable).launch {
-          // Handle error case - error details are provided in the exception.
-          result.error(
-            "Failed to send event. The event name may be invalid or not enabled for client-side triggers in the Atomic Workbench.",
-            e.localizedMessage ?: "",
-            null
-          )
-        }
-      }
-    })
   }
 
   fun requestCardCountForStreamContainerWithIdentifier(
@@ -224,6 +190,8 @@ class AACFlutterSDK {
 
   fun logout(result: Result) {
     AACSDK.logout(false) {
+      // Clear properties to prevent memory leaks.
+      cardCountObservers.clear()
       when (it) {
         is AACSDKLogoutResult.Success -> result.success(true)
         is AACSDKLogoutResult.NetworkError -> {
@@ -288,7 +256,7 @@ class AACFlutterSDK {
   fun stopObservingCardCount(identifier: String): Boolean {
     if (cardCountObservers[identifier] == null) {
       Log.i("cardCount", "Observer $identifier doesn't exist")
-      return false;
+      return false
     }
     else {
       cardCountObservers[identifier]!!.stop()
@@ -341,12 +309,11 @@ class AACFlutterSDK {
       "Dismiss" -> AACCardAction.Dismiss(card)
       "Snooze" -> AACCardAction.Snooze(card, (arg as Int).toLong())
       "Submit" -> {
-        val submittedValues = arg as? Map<String, Any>
-        if (submittedValues == null) {
-          result.error("submittedValues not given for the Submit card action.", "Failed to execute card action.", null)
-          return
-        }
-        AACCardAction.Submit(card, submittedValues.toMutableMap())
+        val argList = arg as List<Any>
+        val buttonName = argList[0] as String
+        val submittedValues = argList[1] as Map<String, Any>
+
+        AACCardAction.Submit(card, buttonName, submittedValues.toMutableMap())
       }
       else -> {
         result.error("Action type not found.", "Failed to execute card action.", null)

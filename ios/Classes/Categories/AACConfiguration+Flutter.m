@@ -80,28 +80,42 @@ static CGFloat kAACColourScale = 255.0f;
         singleConfig.automaticallyLoadNextCard = [(NSNumber*)automaticallyLoadNextCard boolValue];
         config = singleConfig;
     }
+    
+    // Sets cardMaxWidth before cardWidth otherwise it might be accidentally set to 0 or a negative number, which will cause a crash because cardMaxWidth works the same as cardWidth for horizontal containers, and cardWidth doesn't allow 0 or < 0.
+    id cardMaxWidth = dict[@"cardMaxWidth"];
+    if(cardMaxWidth != nil && [cardMaxWidth isKindOfClass:NSNumber.class]) {
+        config.cardMaxWidth = [cardMaxWidth doubleValue];
+    }
+    
     id cardWidth = dict[@"cardWidth"];
     if(cardWidth != nil && [cardWidth isKindOfClass:NSNumber.class]) {
         AACHorizontalContainerConfiguration *horizonConfig = [[AACHorizontalContainerConfiguration alloc] init];
+
         horizonConfig.cardWidth = [(NSNumber *)cardWidth doubleValue];
+
         id emptyStyle = dict[@"emptyStyle"];
         if(emptyStyle != nil && [emptyStyle isKindOfClass:NSString.class]) {
             horizonConfig.emptyStyle = [kAACHorizontalContainerConfigurationEmptyStyleMapping[emptyStyle] intValue];
         }
+        
         id headerAlignment = dict[@"headerAlignment"];
         if(headerAlignment != nil && [headerAlignment isKindOfClass:NSString.class]) {
             horizonConfig.headerAlignment = [kAACHorizontalContainerConfigurationHeaderAlignmentMapping[headerAlignment] intValue];
         }
+        
         id lastCardAlignment = dict[@"lastCardAlignment"];
         if(lastCardAlignment != nil && [lastCardAlignment isKindOfClass:NSString.class]) {
             horizonConfig.lastCardAlignment = [kAACHorizontalContainerConfigurationLastCardAlignmentMapping[lastCardAlignment] intValue];
         }
+        
         id scrollMode = dict[@"scrollMode"];
         if(scrollMode != nil && [scrollMode isKindOfClass:NSString.class]) {
             horizonConfig.scrollMode = [kAACHorizontalContainerConfigurationScrollModeMapping[scrollMode] intValue];
         }
+        
         config = horizonConfig;
     }
+
     id pollingInterval = dict[@"pollingInterval"];
     id cardVotingOptions = dict[@"cardVotingOptions"];
     id launchColors = dict[@"launchColors"];
@@ -111,7 +125,7 @@ static CGFloat kAACColourScale = 255.0f;
     id enabledUiElements = dict[@"enabledUiElements"];
     id runtimeVariableTimeout = dict[@"runtimeVariableResolutionTimeout"];
     id runtimeVariableAnalytics = dict[@"runtimeVariableAnalytics"];
-   
+    
     if(pollingInterval != nil && [pollingInterval isKindOfClass:NSNumber.class]) {
         config.cardListRefreshInterval = [pollingInterval doubleValue];
     }
@@ -167,6 +181,7 @@ static CGFloat kAACColourScale = 255.0f;
     if(runtimeVariableAnalytics != nil && [runtimeVariableAnalytics isKindOfClass:NSNumber.class]) {
         config.features.runtimeVariableAnalytics = [(NSNumber*)runtimeVariableAnalytics boolValue];
     }
+
     return config;
 }
 
