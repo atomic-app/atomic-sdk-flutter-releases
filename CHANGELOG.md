@@ -1,3 +1,11 @@
+## 24.2.0
+- **Feature:** Updated to match version 24.2.0 of Atomic's iOS SDK and version 24.2.1 of Atomic's Android SDK. For more details, see the [Flutter guide](https://documentation.atomic.io/sdks/flutter).
+- **Bugfix**: Fixed occasional unexpected Exceptions in iOS.
+- **Bugfix**: Fixed various bugs and added missing parts in the API-driven card containers.
+- **Enhancement**: Upgraded Dart to version `>=3.0.0 <4.0.0`.
+- **Enhancement**: Added a privacy manifest file to the iOS wrapper.
+- **Removal**: The deprecated `sendEvent` method has now been removed.
+
 ## 23.4.0
 
 * Updated to match the version 23.4.0 Android and iOS SDKs. For more details, see the [Flutter guide](https://documentation.atomic.io/sdks/flutter).

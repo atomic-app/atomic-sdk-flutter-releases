@@ -2,17 +2,19 @@ package io.atomic.atomic_sdk_flutter
 
 import android.util.Log
 import com.atomic.actioncards.analytics.services.AACEventName
+import com.atomic.actioncards.feed.data.model.Card
 import com.atomic.actioncards.feed.data.model.CardActions
 import com.atomic.actioncards.feed.data.model.CardIdentifier
 import com.atomic.actioncards.feed.data.model.CardMetadata
 import com.atomic.actioncards.feed.data.model.CardSubview
 import com.atomic.actioncards.feed.data.model.CardView
+import com.atomic.actioncards.sdk.AACCustomEvent
 import com.atomic.actioncards.sdk.AACSDK
+import com.atomic.actioncards.sdk.AACSDKSendCustomEventsResult
 import com.atomic.actioncards.sdk.AACSDKSendUserSettingsResult
 import com.atomic.actioncards.sdk.AACStreamContainer
 import com.atomic.actioncards.sdk.AACUserNotificationTimeframe
 import com.atomic.actioncards.sdk.AACUserSettings
-import com.atomic.actioncards.sdk.events.AACEventPayload
 import com.squareup.moshi.Moshi
 import io.atomic.atomic_sdk_flutter.helpers.AACFlutterSessionDelegate
 import io.atomic.atomic_sdk_flutter.utils.asListOfType
@@ -79,17 +81,45 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
       "observeStreamContainer" -> observeStreamContainer(call, result)
       "stopObservingStreamContainer" -> stopObservingStreamContainer(call, result)
       "requestCardCount" -> requestCardCount(call, result)
-      "sendEvent" -> sendEvent(call, result)
       "userMetrics" -> userMetrics(call, result)
       "trackPushNotificationReceived" -> trackPushNotificationReceived(call, result)
       "onAuthTokenReceived" -> didReceiveAuthenticationToken(call)
       "setClientAppVersion" -> setClientAppVersion(call, result)
       "setSessionDelegate" -> setSessionDelegate(result)
       "updateUser" -> updateUser(call, result)
-      "startObservingSDKEvents" -> startObservingSDKEvents(call, result)
-      "stopObservingSDKEvents" -> stopObservingSDKEvents(call, result)
+      "startObservingSDKEvents" -> startObservingSDKEvents(result)
+      "stopObservingSDKEvents" -> stopObservingSDKEvents(result)
       "executeCardAction" -> executeCardAction(call, result)
+      "sendCustomEvent" -> sendCustomEvent(call, result)
       else -> result.notImplemented()
+    }
+  }
+
+  private fun sendCustomEvent(call: MethodCall, result: Result) {
+    val args = call.arguments as List<*>;
+    val eventName = args[0] as String;
+    var properties = args[1] as Map<String, String>?;
+
+    if (properties == null) {
+      properties = emptyMap()
+    }
+
+    val customEvent = AACCustomEvent(eventName, properties);
+
+    AACSDK.sendCustomEvent(customEvent) { eventResult ->
+      when (eventResult) {
+        AACSDKSendCustomEventsResult.DataError -> {
+          flutterLogger.error(Exception(eventResult.toString()))
+          result.error(
+                  ERROR_CODE_SEND_CUSTOM_EVENT,
+                  eventResult.toString(),
+                  "Failed to send a custom event with the eventName ($eventName) and properties ($properties)."
+          )
+        }
+        AACSDKSendCustomEventsResult.Success -> {
+          result.success(true)
+        }
+      }
     }
   }
 
@@ -233,44 +263,6 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
     } catch (e: Exception) {
       flutterLogger.error(e)
       result.error(ERROR_CODE_USER_METRICS, e.message, "Failed to request user metrics.")
-    }
-  }
-
-  private fun sendEvent(call: MethodCall, result: Result) {
-    try {
-      val parameters = call.arguments as ArrayList<*>
-      val payloadRaw = (parameters[0] as Map<*, *>).asStringMap()
-        ?: throw IllegalArgumentException("Event payload was not in the expected format.")
-      val eventName = payloadRaw["name"] as? String
-        ?: throw IllegalArgumentException("You must supply an event name when sending event.")
-      AACEventPayload(eventName).apply {
-        lifecycleId = payloadRaw["lifecycleId"] as? String
-        payload.apply {
-          payloadRaw["detail"]?.let {
-            detail.putAll(
-              (it as Map<*, *>).asStringMapOfType()
-                ?: throw IllegalArgumentException("You must supply a string dictionary for the event payload.")
-            )
-          }
-          payloadRaw["notificationDetail"]?.let {
-            notificationDetail.putAll(
-              (it as Map<*, *>).asStringMapOfType()
-                ?: throw IllegalArgumentException("You must supply a string dictionary for the notification detail.")
-            )
-          }
-          payloadRaw["metadata"]?.let {
-            metadata.putAll(
-              (it as Map<*, *>).asStringMapOfType()
-                ?: throw IllegalArgumentException("You must supply a string dictionary for the event meta data.")
-            )
-          }
-        }
-      }.run {
-        aacFlutterSDK.sendEvent(this, result)
-      }
-    } catch (e: Exception) {
-      flutterLogger.error(e)
-      result.error(ERROR_CODE_SEND_EVENT, e.message, "Failed to send event.")
     }
   }
 
@@ -470,30 +462,29 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
 
       val cardsJsonList : List<Map<String, Any?>>?
       if (cards == null) {
-        cardsJsonList = null;
+        cardsJsonList = null
       }
       else {
         cardsJsonList  = ArrayList()
         cards.forEach { card ->
           Log.i("observeStreamContainer", "card title: ${card.metadata.title}")
           val moshi: Moshi = Moshi.Builder().build()
-          val subviewsJson = HashMap<String, Any?>()
+          val subviewJsons = HashMap<String, Any?>()
           card.subviews.forEach { (s, cardSubview) ->
-            subviewsJson[s] = moshi.adapter(CardSubview::class.java).toJsonValue(cardSubview);
+            subviewJsons[s] = moshi.adapter(CardSubview::class.java).toJsonValue(cardSubview)
           }
           val cardJson = mapOf(
                   "instance" to moshi.adapter(CardIdentifier::class.java).toJsonValue(card.instance),
                   "actions" to moshi.adapter(CardActions::class.java).toJsonValue(card.actions),
-                  "defaultView" to moshi.adapter(CardView::class.java).toJsonValue(card.defaultView),
-                  "subviews" to subviewsJson,
-                  "metadata" to moshi.adapter(CardMetadata::class.java).toJsonValue(card.metadata),
+                  "defaultView" to resolveVariables(moshi.adapter(CardView::class.java).toJsonValue(card.defaultView), card),
+                  "subviews" to resolveVariables(subviewJsons, card),
+                  "metadata" to resolveVariables(moshi.adapter(CardMetadata::class.java).toJsonValue(card.metadata), card),
                   "runtimeVariables" to card.runtimeVariablesAsMap(),
           )
           cardsJsonList.add(cardJson)
         }
         //longLog("observeStreamContainer", "cardsJsonList: $cardsJsonList")
       }
-
 
       // The identifier is used here to call the Flutter callback
       CoroutineScope(Dispatchers.Main + NonCancellable).launch {
@@ -506,6 +497,15 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
     result.success(identifier)
   }
 
+  private fun resolveVariables(input: Any?, card : Card): Any? {
+    return when (input) {
+      is String -> card.stringWithResolvedVariables(input)
+      is Map<*, *> -> input.mapValues { (_, value) -> resolveVariables(value, card) }
+      is Collection<*> -> input.map { resolveVariables(it, card) }
+      else -> input
+    }
+  }
+
   private fun stopObservingStreamContainer(call: MethodCall, result: Result) {
     try {
       val identifier = (call.arguments as List<*>)[0] as String
@@ -515,7 +515,8 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
       }
       else {
         container.stopUpdates()
-        result.success(AACSDK.stopObservingStreamContainer(identifier))
+        AACSDK.stopObservingStreamContainer(identifier)
+        result.success(true)
       }
     } catch (e: Exception) {
       flutterLogger.error(e)
@@ -523,26 +524,26 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
     }
   }
 
-  private fun startObservingSDKEvents(call: MethodCall, result: Result) = try {
+  private fun startObservingSDKEvents(result: Result) = try {
     AACSDK.observeSDKEvents { sdkEvent ->
       CoroutineScope(Dispatchers.Main + NonCancellable).launch {
-        var cardContextJson : Map<String, String?>? = null;
+        var cardContextJson : Map<String, String?>? = null
         if (sdkEvent.cardContext != null) {
           cardContextJson = mapOf(
                   "cardInstanceId" to sdkEvent.cardContext!!.cardInstanceId,
                   "cardPresentation" to sdkEvent.cardContext!!.cardPresentation,
                   "cardInstanceStatus" to sdkEvent.cardContext!!.cardInstanceStatus,
                   "cardViewState" to sdkEvent.cardContext!!.cardViewState,
-          );
+          )
         }
 
-        var propertiesJson : Map<String, Any?>? = null;
+        var propertiesJson : Map<String, Any?>? = null
         if (sdkEvent.properties != null) {
           var payload = sdkEvent.properties!!.payload
-          var unsnooze : String? = null;
+          var unsnooze : String? = null
           payload?.forEach { (key, value) ->
             if (key == "unsnoozeISO8601") {
-              unsnooze = value.toString();
+              unsnooze = value.toString()
               return@forEach
             }
           }
@@ -551,17 +552,18 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
             payload = null
           }
 
-          var submittedValues : Map<String, Any>? = null;
-          var redirectPayload : Map<String, Any>? = null;
+          var submittedValues : Map<String, Any?>? = null
+          var redirectPayload : Map<String, Any?>? = null
           if (sdkEvent.eventName == AACEventName.UserRedirected) {
-            redirectPayload = payload;
+            redirectPayload = payload
           }
           else if (sdkEvent.eventName == AACEventName.Submitted) {
-            submittedValues = payload;
+            submittedValues = payload
           }
           propertiesJson = mapOf(
                   "message" to sdkEvent.properties!!.message,
                   "linkMethod" to sdkEvent.properties!!.linkMethod,
+                  "detail" to sdkEvent.properties!!.detail,
                   "path" to sdkEvent.properties!!.path,
                   "reason" to sdkEvent.properties!!.reason,
                   "source" to sdkEvent.properties!!.source,
@@ -577,14 +579,14 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
           )
         }
         val containerId = sdkEvent.sdkContext.containerId
-        var streamContextJson : Map<String, Any?>? = null;
+        var streamContextJson : Map<String, Any?>? = null
         if (sdkEvent.streamContext != null) {
           streamContextJson = mapOf(
                   "streamLength" to sdkEvent.streamContext!!.streamLength,
                   "cardPositionInStream" to sdkEvent.streamContext!!.cardPositionInStream,
                   "streamLengthVisible" to sdkEvent.streamContext!!.streamLengthVisible,
                   "displayMode" to sdkEvent.streamContext!!.displayMode,
-          );
+          )
         }
         val sdkEventJson = mapOf(
                 "eventName" to sdkEvent.eventName.name,
@@ -609,7 +611,7 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
             "Failed to start observing SDK events.")
   }
 
-  private fun stopObservingSDKEvents(call: MethodCall, result: Result) {
+  private fun stopObservingSDKEvents(result: Result) {
     try {
       AACSDK.observeSDKEvents(null)
       result.success(true)
@@ -652,7 +654,7 @@ class AACFlutterPlugin : FlutterPlugin, MethodCallHandler {
     const val ERROR_CODE_NOTIFICATION_PAYLOAD = "8"
     const val ERROR_CODE_STOP_CARD_COUNT = "9"
     const val ERROR_CODE_REQUEST_CARD_COUNT = "10"
-    const val ERROR_CODE_SEND_EVENT = "11"
+    const val ERROR_CODE_SEND_CUSTOM_EVENT = "11"
     const val ERROR_CODE_USER_METRICS = "12"
     const val ERROR_CODE_TRACK_PUSH_NOTIFICATION = "13"
     const val ERROR_CODE_UPDATE_USER = "14"

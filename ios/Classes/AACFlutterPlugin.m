@@ -31,6 +31,7 @@ static NSDictionary *kAACFlutterFontStyle = nil;
 @property (nonatomic, strong) AACFlutterSessionDelegate *sessionDelegate;
 @property (nonatomic) NSTimeInterval authTokenRetryInterval;
 @property (nonatomic) NSTimeInterval authTokenExpiryInterval;
+@property (nonatomic) AACDataInterfaceRuntimeVarDelegate* runtimeVariablesDelegate;
 
 @end
 
@@ -135,11 +136,6 @@ static NSDictionary *kAACFlutterFontStyle = nil;
         AACValidateArguments(call.arguments, types, result);
         [self trackPushNotificationReceived:call.arguments[0]
                                      result:result];
-    } else if([call.method isEqual:@"sendEvent"]) {
-        NSArray *types = @[ NSDictionary.class ];
-        AACValidateArguments(call.arguments, types, result);
-        [self sendEvent:call.arguments[0]
-                 result:result];
     } else if([call.method isEqual:@"requestCardCount"]) {
         NSArray *types = @[ NSString.class ];
         AACValidateArguments(call.arguments, types, result);
@@ -199,6 +195,8 @@ static NSDictionary *kAACFlutterFontStyle = nil;
         AACValidateArguments(call.arguments, types, result);
         [self stopObservingStreamContainer:call.arguments[0] result:result];
     } else if ([call.method isEqual:@"executeCardAction"]) {
+        NSArray *types = @[ NSString.class, NSString.class, NSString.class, NSObject.class ];
+        AACValidateArgumentsAllowNull(call.arguments, types, result);
         [self executeCardActionWithContainerId:call.arguments[0] cardId:call.arguments[1] actionType:call.arguments[2] actionArg:call.arguments[3] result:result];
     } else {
         NSString *message = [NSString stringWithFormat:@"Method call (%@) not implemented.", call.method];
@@ -222,7 +220,7 @@ static NSDictionary *kAACFlutterFontStyle = nil;
         action = [[AACSessionCardAction alloc] initSnoozeActionWithContainerId:containerId cardId:cardId snoozeInterval:((NSNumber*)actionArg).doubleValue];
     }
     else if ([actionType  isEqual: @"Submit"]) {
-        action = [[AACSessionCardAction alloc] initSubmitActionWithContainerId:containerId cardId:cardId submitValues:(NSDictionary<NSString*, id>*)actionArg];
+        action = [[AACSessionCardAction alloc] initSubmitActionWithContainerId:containerId cardId:cardId submitButtonName:(NSString*)actionArg[0] submitValues:(NSDictionary<NSString*, id>*)actionArg[1]];
     }
     else {
         @throw [NSException exceptionWithName:@"ExecuteCardActionTypeException" reason:[NSString stringWithFormat:@"Unknown actionType: %@", actionType] userInfo:nil];
@@ -232,11 +230,11 @@ static NSDictionary *kAACFlutterFontStyle = nil;
             result(@"Success");
         }
         else {
+            NSLog(@"Error executing card action: %@", error);
             if (error.code == AACSessionCardActionsErrorCodeNetworkError) {
                 result(@"NetworkError");
             }
             else if (error.code == AACSessionCardActionsErrorCodeDataError) {
-                NSLog(@"Error executing card action: %@", error);
                 result(@"DataError");
             }
             else {
@@ -307,6 +305,35 @@ NSString* AACCardNodeMediaFormatToString(AACCardNodeMediaFormat mediaFormat) {
     }
 }
 
+NSString* AACCardNodeMediaActionTypeToString(AACCardNodeMediaActionType actionType) {
+    switch (actionType) {
+        case AACCardNodeMediaActionTypeURL:
+            return @"url";
+        case AACCardNodeMediaActionTypeMedia:
+            return @"media";
+        case AACCardNodeMediaActionTypePayload:
+            return @"payload";
+        case AACCardNodeMediaActionTypeSubview:
+            return @"subview";
+        default:
+            return @"unknown";
+    }
+}
+
+NSString* AACCardNodeMediaHeightToString(AACCardNodeMediaHeight heightType) {
+    switch (heightType) {
+        case AACCardNodeMediaHeightTall:
+            return @"tall";
+        case AACCardNodeMediaHeightShort:
+            return @"short";
+        case AACCardNodeMediaHeightMedium:
+            return @"medium";
+        case AACCardNodeMediaHeightOriginal:
+            return @"original";
+    }
+}
+
+
 NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
     NSString* type = node.type;
     NSMutableArray<AACCardNode*>* children = [NSMutableArray array];
@@ -314,22 +341,11 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
         children = node.children.mutableCopy;
     }
     
-    NSMutableDictionary<NSString*, id>* validationsJson = [NSMutableDictionary dictionary];
-//    for (AACValidation* validation in node.validator.validations) {
-          // NOTICE AACValidationRequired not found
-//        if ([validation isKindOfClass:AACValidationRequired.class]) {
-//            ...
-//        }
-//        ...
-//    }
-    
-    NSMutableDictionary<NSString*, id>* attributesJson = [NSMutableDictionary dictionary]; //TODO
-    //if ([node isKindOfClass:AACCardNodePlaceHolder.class]) // NOTICE not found
-    //if ([node isKindOfClass:AACCardNodeRadioGroup.class]) // NOTICE not found
-    //if ([node isKindOfClass:AACCardNodeRadioItem.class]) // NOTICE not found
+    NSMutableDictionary<NSString*, id>* attributesJson = [NSMutableDictionary dictionary];
     if ([node isKindOfClass:AACCardNodeText.class]) {
         AACCardNodeText* nodeText = (AACCardNodeText*) node;
-        attributesJson[@"icon"] = nodeText.icon;
+        attributesJson[@"iconUrl"] = nodeText.customIcon.iconUrl.absoluteString;
+        attributesJson[@"icon"] = nodeText.customIcon.fontAwesomeIconName;
         attributesJson[@"text"] = nodeText.text;
         // Setting the type here manually because for some reason the type is nil sometimes for this node class.
         type = @"text";
@@ -338,26 +354,32 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
         AACCardNodeMedia* nodeMedia = (AACCardNodeMedia*) node;
         attributesJson[@"label"] = nodeMedia.label;
         attributesJson[@"mediaDescription"] = nodeMedia.mediaDescription;
-        attributesJson[@"thumbnailUrl"] = nodeMedia.thumbnailUrl.description;
-        attributesJson[@"url"] = nodeMedia.url.description;
+        attributesJson[@"thumbnailUrl"] = nodeMedia.thumbnailUrl.absoluteString;
+        attributesJson[@"url"] = nodeMedia.url.absoluteString;
         attributesJson[@"thumbnailAlternateText"] = nodeMedia.thumbnailAlternateText;
         attributesJson[@"alternateText"] = nodeMedia.alternateText;
-        //attributesJson[@"actionUrl"] = nodeMedia.actionUrl; // NOTICE not found
-        //attributesJson[@"actionLayoutName"] = nodeMedia.actionLayoutName; // NOTICE not found
-        //attributesJson[@"actionPayload"] = nodeMedia.actionPayload; // NOTICE not found
-        //nodeMedia.actionType // NOTICE not found
+        attributesJson[@"actionUrl"] = nodeMedia.actionUrl.absoluteString;
+        attributesJson[@"actionLayoutName"] = nodeMedia.actionLayoutName;
+        attributesJson[@"actionPayload"] = nodeMedia.actionPayload;
+        attributesJson[@"actionType"] = AACCardNodeMediaActionTypeToString(nodeMedia.actionType);
         attributesJson[@"mediaKind"] = AACCardNodeMediaKindToString(nodeMedia.mediaKind);
         attributesJson[@"format"] = AACCardNodeMediaFormatToString(nodeMedia.format);
+        attributesJson[@"dimensions"] = @{
+            @"height" : AACCardNodeMediaHeightToString(nodeMedia.displayedHeightType)
+        };
     }
     else if ([node isKindOfClass:AACCardNodeListItem.class]) {
         AACCardNodeListItem* nodeListItem = (AACCardNodeListItem*) node;
         attributesJson[@"text"] = nodeListItem.text;
         attributesJson[@"icon"] = nodeListItem.icon;
-        attributesJson[@"preIcon"] = nodeListItem.preIcon;
+        attributesJson[@"preIcon"] = nodeListItem.customIcon.fontAwesomeIconName;
+        attributesJson[@"preIconUrl"] = nodeListItem.customIcon.iconUrl.absoluteString;
         attributesJson[@"style"] = AACCardNodeListStyleToString(nodeListItem.style);
         attributesJson[@"sequenceNumber"] = @(nodeListItem.sequenceNumber);
         attributesJson[@"sequencePlaceholder"] = @(nodeListItem.sequencePlaceHolder);
         attributesJson[@"isLastItem"] = @(nodeListItem.isLastItem);
+        // Setting the type here manually because for some reason the type is nil sometimes for this node class.
+        type = @"listItem";
     }
     else if ([node isKindOfClass:AACCardNodeList.class]) {
         AACCardNodeList* nodeList = (AACCardNodeList*) node;
@@ -366,24 +388,24 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
             AACCardNodeListComma* nodeListComma = (AACCardNodeListComma*) node;
             attributesJson[@"listText"] = nodeListComma.listText;
         }
+        // Setting the type here manually because for some reason the type is nil sometimes for this node class.
+        type = @"list";
     }
     else if ([node isKindOfClass:AACCardNodeSubmittable.class]) {
         AACCardNodeSubmittable* nodeSubmittable = (AACCardNodeSubmittable*) node;
         attributesJson[@"name"] = nodeSubmittable.name;
-        attributesJson[@"storedResponseValue"] = nodeSubmittable.storedResponseValue;
-        attributesJson[@"needValidation"] = @(nodeSubmittable.needValidation);
         if ([node isKindOfClass:AACCardNodeTextInput.class]) {
             AACCardNodeTextInput* textInput = (AACCardNodeTextInput*) node;
             attributesJson[@"placeholder"] = textInput.placeholder;
             attributesJson[@"defaultValue"] = textInput.defaultValue;
             attributesJson[@"numberOfLines"] = textInput.numberOfLines;
-            attributesJson[@"thumbnailUrl"] = textInput.thumbnailUrl.description;
+            attributesJson[@"thumbnailUrl"] = textInput.thumbnailUrl.absoluteString;
             attributesJson[@"maximumLength"] = textInput.maximumLength;
         }
         else if ([node isKindOfClass:AACCardNodeStepper.class]) {
             AACCardNodeStepper* nodeStepper = (AACCardNodeStepper*) node;
             attributesJson[@"label"] = nodeStepper.label;
-            attributesJson[@"thumbnailUrl"] = nodeStepper.thumbnailUrl.description;
+            attributesJson[@"thumbnailUrl"] = nodeStepper.thumbnailUrl.absoluteString;
             attributesJson[@"minimumValue"] = nodeStepper.minimumValue;
             attributesJson[@"maximumValue"] = nodeStepper.maximumValue;
             attributesJson[@"stepValue"] = nodeStepper.stepValue;
@@ -392,20 +414,20 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
         else if ([node isKindOfClass:AACCardNodeSwitch.class]) {
             AACCardNodeSwitch* nodeSwitch = (AACCardNodeSwitch*) node;
             attributesJson[@"label"] = nodeSwitch.label;
-            attributesJson[@"thumbnailUrl"] = nodeSwitch.thumbnailUrl.description;
+            attributesJson[@"thumbnailUrl"] = nodeSwitch.thumbnailUrl.absoluteString;
             attributesJson[@"defaultValue"] = @(nodeSwitch.defaultValue);
         }
         else if ([node isKindOfClass:AACCardNodeNumberInput.class]) {
             AACCardNodeNumberInput* numberInput = (AACCardNodeNumberInput*) node;
             attributesJson[@"placeholder"] = numberInput.placeholder;
             attributesJson[@"defaultValue"] = numberInput.defaultValue;
-            attributesJson[@"thumbnailUrl"] = numberInput.thumbnailUrl.description;
+            attributesJson[@"thumbnailUrl"] = numberInput.thumbnailUrl.absoluteString;
         }
         else if ([node isKindOfClass:AACCardNodeDropdown.class]) {
             AACCardNodeDropdown* nodeDropdown = (AACCardNodeDropdown*) node;
             attributesJson[@"label"] = nodeDropdown.label;
             attributesJson[@"defaultValue"] = nodeDropdown.defaultValue;
-            attributesJson[@"thumbnailUrl"] = nodeDropdown.thumbnailUrl.description;
+            attributesJson[@"thumbnailUrl"] = nodeDropdown.thumbnailUrl.absoluteString;
             attributesJson[@"placeholder"] = nodeDropdown.placeholder;
             attributesJson[@"format"] = AACCardNodeDropdownFormatToString(nodeDropdown.format);
             NSMutableArray<NSDictionary<NSString*, id>*>* dropdownValuesJsonList = @[].mutableCopy;
@@ -423,7 +445,7 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
             attributesJson[@"minimumValue"] = datePicker.minimumValue.aacFlutter_ISONSStringFromNSDate;
             attributesJson[@"defaultValue"] = datePicker.defaultValue.aacFlutter_ISONSStringFromNSDate;
             attributesJson[@"maximumValue"] = datePicker.maximumValue.aacFlutter_ISONSStringFromNSDate;
-            attributesJson[@"thumbnailUrl"] = datePicker.thumbnailUrl.description;
+            attributesJson[@"thumbnailUrl"] = datePicker.thumbnailUrl.absoluteString;
             attributesJson[@"placeholder"] = datePicker.placeholder;
             attributesJson[@"format"] = AACCardNodeDatePickerFormatToString(datePicker.format);
         }
@@ -431,10 +453,14 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
     else if ([node isKindOfClass:AACCardNodeHeading1.class]) {
         AACCardNodeHeading1* nodeHeading1 = (AACCardNodeHeading1*) node;
         attributesJson[@"text"] = nodeHeading1.text;
+        attributesJson[@"iconUrl"] = nodeHeading1.customIcon.iconUrl.absoluteString;
+        attributesJson[@"icon"] = nodeHeading1.customIcon.fontAwesomeIconName;
     }
     else if ([node isKindOfClass:AACCardNodeCategory.class]) {
         AACCardNodeCategory* nodeCategory = (AACCardNodeCategory*) node;
         attributesJson[@"text"] = nodeCategory.text;
+        attributesJson[@"iconUrl"] = nodeCategory.customIcon.iconUrl.absoluteString;
+        attributesJson[@"icon"] = nodeCategory.customIcon.fontAwesomeIconName;
     }
     else if ([node isKindOfClass:AACCardNodeForm.class]) {
         AACCardNodeForm* nodeForm = (AACCardNodeForm*) node;
@@ -445,7 +471,8 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
     else if ([node isKindOfClass:AACCardBaseButton.class]) {
         AACCardBaseButton* baseButton = (AACCardBaseButton*) node;
         attributesJson[@"text"] = baseButton.text;
-        attributesJson[@"icon"] = baseButton.icon;
+        attributesJson[@"iconUrl"] = baseButton.customIcon.iconUrl.absoluteString;
+        attributesJson[@"icon"] = baseButton.customIcon.fontAwesomeIconName;
         if ([node isKindOfClass:AACCardActionButton.class]) {
             if ([node isKindOfClass:AACCardNodeSnoozeButton.class]) {
                 AACCardNodeSnoozeButton* nodeSnoozeButton = (AACCardNodeSnoozeButton*) node;
@@ -463,6 +490,7 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
             else if ([node isKindOfClass:AACCardNodeSubmitButton.class]) {
                 AACCardNodeSubmitButton* submitButton = (AACCardNodeSubmitButton*) node;
                 attributesJson[@"values"] = submitButton.values;
+                attributesJson[@"name"] = submitButton.buttonName;
             }
         }
     }
@@ -470,12 +498,10 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
     NSMutableDictionary<NSString *, id> *nodeJson = @{
         @"type" : type == nil ? @"unknown type" : type,
         @"attributes" : attributesJson,
-        @"validations" : validationsJson,
     }.mutableCopy;
     
     NSMutableArray<NSDictionary<NSString *, id> *> *childrenJsonList = @[].mutableCopy;
     if (children != nil) {
-        // NOTICE after testing this, children is always either nil or an empty list (). Might need to wait for iOS to be updated as this is currently only an MVP feature.
         for (AACCardNode *childNode in children) {
             NSDictionary<NSString *, id> *childJson = toJsonFromNode(childNode);
             if (childJson) {
@@ -495,15 +521,16 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
     NSNumber* runtimeVariableResolutionTimeout = configJson[@"runtimeVariableResolutionTimeout"];
     NSArray<NSDictionary<NSString*, id>*>*  _Nullable filtersJsonList = configJson[@"filters"];
     NSNumber* pollingInterval = configJson[@"pollingInterval"];
-    
     NSDictionary<NSString*, NSString*>*  _Nullable runtimeVariables = configJson[@"runtimeVariables"];
-    AACDataInterfaceRuntimeVarDelegate* runtimeVariablesDelegate = [[AACDataInterfaceRuntimeVarDelegate alloc] initWithRuntimeVariables:runtimeVariables];
+    // The runtimeVariablesDelegate needs to be held as a strong reference (a property) otherwise it'll be lost after this method finishes.
+    self.runtimeVariablesDelegate = [[AACDataInterfaceRuntimeVarDelegate alloc] initWithRuntimeVariables:runtimeVariables];
     
     AACStreamContainerObserverConfiguration* config = AACStreamContainerObserverConfiguration.new;
     config.sendRuntimeVariableAnalytics = runtimeVariableAnalytics;
     config.runtimeVariableResolutionTimeout = runtimeVariableResolutionTimeout.doubleValue;
     config.filters = [AACFilterParser parseFiltersFromJson:filtersJsonList];
-    config.runtimeVariableDelegate = runtimeVariablesDelegate;
+    config.runtimeVariableDelegate = self.runtimeVariablesDelegate;
+                                                                                            
     // 1000 minumum polling interval
     double pollingIntervalDouble = pollingInterval.doubleValue;
     if (pollingIntervalDouble < 1000) {
@@ -517,12 +544,22 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
         for (AACCardInstance* card in cards) {
             NSMutableDictionary<NSString*, id>* runtimeVariablesJson = [NSMutableDictionary dictionary];
             for (AACCardRuntimeVariable* runtimeVar in card.runtimeVariables) {
-                runtimeVariablesJson[runtimeVar.name] = runtimeVar.defaultValue;
+                // Manually set the runtime variable JSON here to match Android... because for some reason, even though runtime variables inside the card nodes gets replaced, runtimeVar.defaultValue doesn't.
+                NSString* runtimeValue = runtimeVariables[runtimeVar.name];
+                if (runtimeValue == nil) {
+                    runtimeValue = runtimeVar.defaultValue;
+                }
+                runtimeVariablesJson[runtimeVar.name] = runtimeValue;
             }
             
-            NSMutableArray<NSDictionary<NSString*, id>*>* defaultViewNodes = @[].mutableCopy;
+            NSMutableArray<NSDictionary<NSString*, id>*>* defaultViewNodes = [NSMutableArray array];
             for (AACCardNode* node in card.defaultLayout.nodes) {
                 [defaultViewNodes addObject:toJsonFromNode(node)];
+            }
+            
+            NSMutableDictionary<NSString*, NSDictionary*>* subviewsJson = [NSMutableDictionary dictionary];
+            for (NSString* subviewName in card.subLayoutNames) {
+                subviewsJson[subviewName] = [self subviewJsonFromName:subviewName inCard:card];
             }
             
             NSDictionary<NSString*, id>* cardJson = @{
@@ -551,14 +588,7 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
                 @"defaultView" : @{
                     @"nodes" : defaultViewNodes,
                 },
-                @"subviews" : @{
-                    // NOTICE not implemented in iOS yet. It has a layoutWithName()
-                    // TODO once iOS has added a way to retrieve all subview names, I need to implement it here.
-                    @"" : @{
-                        @"title" : @"",
-                        @"nodes" : @[],
-                    },
-                },
+                @"subviews" : subviewsJson,
                 @"metadata" : @{
                     // NOTICE there is no title property in iOS, but there is on Android.
                     // TODO set title once we figure out where it is.
@@ -572,13 +602,26 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
             
             [cardJsonList addObject:cardJson];
         }
-        
-        [self.channel invokeMethod:@"onStreamContainerObserved" arguments:@{
-            @"identifier" : token,
-            @"cards": cardJsonList
-        }];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.channel invokeMethod:@"onStreamContainerObserved" arguments:@{
+                @"identifier" : token,
+                @"cards": cardJsonList
+            }];
+        });
     }].description;
     result(token);
+}
+
+- (NSDictionary*)subviewJsonFromName:(NSString*)name inCard:(AACCardInstance*)card{
+    AACCardLayout* subview = [card layoutWithName:name];
+    NSMutableArray<NSDictionary<NSString*, id>*>* nodesJson = @[].mutableCopy;
+    for (AACCardNode* node in subview.nodes) {
+        [nodesJson addObject:toJsonFromNode(node)];
+    }
+    return @{
+        @"title" : subview.title,
+        @"nodes" : nodesJson,
+    };
 }
 
 - (void)stopObservingStreamContainer:(NSString*) observerToken result:(FlutterResult)result {
@@ -595,9 +638,11 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
     __weak typeof(self) weakSelf = self;
     self.sessionDelegate.authTokenCallback = ^(NSString *identifier) {
         if(weakSelf != nil) {
-            [weakSelf.channel invokeMethod:@"authTokenRequested" arguments:@{
-                @"identifier": identifier
-            }];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [weakSelf.channel invokeMethod:@"authTokenRequested" arguments:@{
+                    @"identifier": identifier
+                }];
+            });
         }
     };
     self.sessionDelegate.retryIntervalFromFlutter = self.authTokenRetryInterval;
@@ -819,46 +864,6 @@ NSDictionary<NSString *, id>* toJsonFromNode(AACCardNode *node) {
             NSString *errMsg = [NSString stringWithFormat:@"The card count is not available for this stream container (%@).", containerId];
             [AACFlutterLogger log:errMsg];
             FlutterError *flutterError = [FlutterError errorWithCode:@"AACSessionRequestCardCountForStreamContainerErrorDomain (error code 1)" message:errMsg details:nil];
-            result(flutterError);
-        }
-    }];
-}
-
--(void)sendEvent:(NSDictionary*)payload
-          result:(FlutterResult)result {
-    AACEventPayload *eventPayload = [[AACEventPayload alloc] initWithName:payload[@"name"]];
-    eventPayload.lifecycleId = payload[@"lifecycleId"];
-    id dicValue = payload[@"detail"];
-    if([dicValue isKindOfClass:NSDictionary.class] == YES) {
-        eventPayload.detail = (NSDictionary*)dicValue;
-    }
-    dicValue = payload[@"metadata"];
-    if([dicValue isKindOfClass:NSDictionary.class] == YES) {
-        eventPayload.metadata = (NSDictionary*)dicValue;
-    }
-    dicValue = payload[@"notificationDetail"];
-    if([dicValue isKindOfClass:NSDictionary.class] == YES) {
-        eventPayload.notificationDetail = (NSDictionary*)dicValue;
-    }
-    
-    [AACSession sendEvent:eventPayload withCompletionHandler:^(AACEventResponse *response, NSError *error) {
-        if(error == nil) {
-            NSMutableArray *processedEvents = [[NSMutableArray alloc] init];
-            for(AACProcessedEvent *event in response.processedEvents) {
-                [processedEvents addObject:@{
-                    @"name":event.name,
-                    @"lifecycleId":event.lifecycleId,
-                    @"version":@(event.version)
-                }];
-            }
-            result(@{
-                @"batchId": response.batchId,
-                @"processedEvents": processedEvents
-            });
-        } else {
-            [AACFlutterLogger error:@"Failed to send event payload. %@", error];
-            NSString *errorCode = [NSString stringWithFormat:@"%@ (error code %@)", error.domain, @(error.code)];
-            FlutterError *flutterError = [FlutterError errorWithCode:errorCode message:error.localizedDescription details:nil];
             result(flutterError);
         }
     }];
@@ -1098,7 +1103,6 @@ NSString *redirectMethodString(AACSDKEventRedirectLinkMethod redirectMethod) {
     switch (redirectMethod) {
         case AACSDKEventRedirectLinkMethodPayload:
             return @"payload";
-            break;
         case AACSDKEventRedirectLinkMethodUrl:
             return @"url";
         default:
@@ -1107,11 +1111,40 @@ NSString *redirectMethodString(AACSDKEventRedirectLinkMethod redirectMethod) {
     }
 }
 
+NSString *detailString(AACSDKEventRedirectDetailType detail) {
+    switch (detail) {
+        case AACSDKEventRedirectDetailTypeImage :
+            return @"image";
+        case AACSDKEventRedirectDetailTypeLinkButton:
+            return @"linkButton";
+        case AACSDKEventRedirectDetailTypeSubmitButton:
+            return @"submitButton";
+        case AACSDKEventRedirectDetailTypeTextLink:
+            return @"textLink";
+        default:
+            [AACFlutterLogger warn:@"Unknown AACSDKEventRedirectDetailType"];
+            return nil;
+    }
+}
+
+NSString *sourceString(AACSDKEventActionSource source) {
+    switch (source) {
+        case AACSDKEventActionSourceSwipe:
+            return @"swipe-menu";
+        case AACSDKEventActionSourceOverflow:
+            return @"overflow-menu";
+        case AACSDKEventActionSourceCardButton:
+            return @"card-button";
+        default:
+            [AACFlutterLogger warn:@"Unknown AACSDKEventActionSource"];
+            return nil;
+    }
+}
+
 NSString *streamModeString(AACSDKEventStreamMode streamMode) {
     switch (streamMode) {
         case AACSDKEventStreamModeVertical:
             return @"stream";
-            break;
         case AACSDKEventStreamModeHorizontal:
             return @"horizon";
         case AACSDKEventStreamModeSingle:
@@ -1169,6 +1202,11 @@ NSString *streamModeString(AACSDKEventStreamMode streamMode) {
                         AACSDKEventCardVotedDown *cardVotedDown = (AACSDKEventCardVotedDown *)sdkEvent;
                         propertiesJson[@"message"] = cardVotedDown.otherMessage;
                         propertiesJson[@"reason"] = downVoteReasonString(cardVotedDown.reason);
+                        propertiesJson[@"source"] = sourceString(cardVotedDown.source);
+                    }
+                    else if ([sdkEvent isKindOfClass:AACSDKEventCardVotedUp.class]) {
+                        AACSDKEventCardVotedUp *cardVotedUp = (AACSDKEventCardVotedUp *)sdkEvent;
+                        propertiesJson[@"source"] = sourceString(cardVotedUp.source);
                     }
                     else if ([sdkEvent isKindOfClass:AACSDKEventRuntimeVarsUpdated.class]) {
                         AACSDKEventRuntimeVarsUpdated *runtimeVarsUpdated = (AACSDKEventRuntimeVarsUpdated *)sdkEvent;
@@ -1178,7 +1216,8 @@ NSString *streamModeString(AACSDKEventStreamMode streamMode) {
                         AACSDKEventUserRedirected *userRedirected = (AACSDKEventUserRedirected *)sdkEvent;
                         propertiesJson[@"linkMethod"] = redirectMethodString(userRedirected.redirectMethod);
                         propertiesJson[@"redirectPayload"] = userRedirected.redirectPayload;
-                        propertiesJson[@"url"] = userRedirected.redirectUrl.description;
+                        propertiesJson[@"url"] = userRedirected.redirectUrl.absoluteString;
+                        propertiesJson[@"detail"] = detailString(userRedirected.detail);
                     }
                     else if ([sdkEvent isKindOfClass:AACSDKEventCardSubEVT.class]) {
                         AACSDKEventCardSubEVT *cardSubEVT = (AACSDKEventCardSubEVT *)sdkEvent;
@@ -1188,7 +1227,7 @@ NSString *streamModeString(AACSDKEventStreamMode streamMode) {
                     }
                     else if ([sdkEvent isKindOfClass:AACSDKEventVideoEvent.class]) {
                         AACSDKEventVideoEvent *videoEvent = (AACSDKEventVideoEvent *)sdkEvent;
-                        propertiesJson[@"url"] = videoEvent.videoUrl.description;
+                        propertiesJson[@"url"] = videoEvent.videoUrl.absoluteString;
                     }
                 }
             }
@@ -1202,11 +1241,8 @@ NSString *streamModeString(AACSDKEventStreamMode streamMode) {
             cardContextJson[@"cardViewState"] = cardViewStateString(eventHavingViewState.cardViewState);
         }
         
-        // NOTICE `source` currently has to be retrieved from rawContents because it isn't in iOS sdk at the moment: https://linear.app/atomic-app/issue/SDK-1804/[ios]-add-missing-property-source-for-vote-events
         NSDictionary<NSString *, id> *rawContents = sdkEvent.getRawContents;
-        propertiesJson[@"source"] = rawContents[@"properties"][@"source"];
-        
-         // NOTICE Just like `source`, these three values can only be seen in getRawContents
+         // NOTICE These three values can only be seen in getRawContents
         cardContextJson[@"cardPresentation"] = rawContents[@"cardContext"][@"cardPresentation"];
         cardContextJson[@"cardInstanceStatus"] = rawContents[@"cardContext"][@"cardInstanceStatus"];
         streamContextJson[@"cardPositionInStream"] = rawContents[@"streamContext"][@"cardPositionInStream"];
@@ -1222,10 +1258,11 @@ NSString *streamModeString(AACSDKEventStreamMode streamMode) {
             @"containerId": containerId ?: [NSNull null],
             @"streamContext": streamContextJson
         };
-        
-        [self.channel invokeMethod:@"onSDKEvent" arguments:@{
-            @"sdkEventJson": sdkEventJson
-        }];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.channel invokeMethod:@"onSDKEvent" arguments:@{
+                @"sdkEventJson": sdkEventJson
+            }];
+        });
     }];
     result(@(YES));
 }
@@ -1247,11 +1284,13 @@ NSString *streamModeString(AACSDKEventStreamMode streamMode) {
                                                                                   filters:filters
                                                                                   handler:^(NSNumber *cardCount) {
             if(cardCount != nil) {
-                [self.channel invokeMethod:@"cardCountChanged" arguments:@{
-                    @"streamContainerId": containerId,
-                    @"identifier": identifier,
-                    @"cardCount": cardCount
-                }];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self.channel invokeMethod:@"cardCountChanged" arguments:@{
+                        @"streamContainerId": containerId,
+                        @"identifier": identifier,
+                        @"cardCount": cardCount
+                    }];
+                });
             }
         }];
         observer.token = token;

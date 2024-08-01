@@ -188,44 +188,50 @@ NSString *_Nonnull const kAACErrorCodeUnsupportedChannelCommand = @"01";
                     @"runtimeVariables": variables
         }];
     }
-    [self.channel invokeMethod:@"requestRuntimeVariables"
-                     arguments: @{ @"cardsToResolve": cardsToResolveRaw }
-                        result:^(id  _Nullable result) {
-        if(result != nil && [result isKindOfClass:NSArray.class]) {
-            for(NSDictionary *cardRaw in result) {
-                NSString *lifeCycleId = cardRaw[@"lifecycleId"];
-                NSArray *runtimeVariablesRaw = cardRaw[@"runtimeVariables"];
-                NSPredicate *predicate = [NSPredicate predicateWithBlock:^BOOL(id  _Nullable evaluatedObject, NSDictionary<NSString *,id> * _Nullable bindings) {
-                    AACCardInstance *ob = evaluatedObject;
-                    return [ob.lifecycleId isEqualToString:lifeCycleId];
-                }];
-                NSArray<AACCardInstance *> *matchedCards = [cardsToResolve filteredArrayUsingPredicate:predicate];
-                for(AACCardInstance *card in matchedCards) {
-                    for(NSDictionary *variableRaw in runtimeVariablesRaw) {
-                        [card resolveRuntimeVariableWithName:variableRaw[@"name"] value:variableRaw[@"runtimeValue"]];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.channel invokeMethod:@"requestRuntimeVariables"
+                         arguments: @{ @"cardsToResolve": cardsToResolveRaw }
+                            result:^(id  _Nullable result) {
+            if(result != nil && [result isKindOfClass:NSArray.class]) {
+                for(NSDictionary *cardRaw in result) {
+                    NSString *lifeCycleId = cardRaw[@"lifecycleId"];
+                    NSArray *runtimeVariablesRaw = cardRaw[@"runtimeVariables"];
+                    NSPredicate *predicate = [NSPredicate predicateWithBlock:^BOOL(id  _Nullable evaluatedObject, NSDictionary<NSString *,id> * _Nullable bindings) {
+                        AACCardInstance *ob = evaluatedObject;
+                        return [ob.lifecycleId isEqualToString:lifeCycleId];
+                    }];
+                    NSArray<AACCardInstance *> *matchedCards = [cardsToResolve filteredArrayUsingPredicate:predicate];
+                    for(AACCardInstance *card in matchedCards) {
+                        for(NSDictionary *variableRaw in runtimeVariablesRaw) {
+                            [card resolveRuntimeVariableWithName:variableRaw[@"name"] value:variableRaw[@"runtimeValue"]];
+                        }
                     }
                 }
+                completionHandler(cardsToResolve);
             }
-            completionHandler(cardsToResolve);
-        }
-    }];
+        }];
+    });
 }
 
 #pragma mark - AACStreamContainerActionDelegate
 - (void)streamContainerDidTapLinkButton:(AACStreamContainerViewController *)streamContainer withAction:(AACCardCustomAction *)action {
-    [self.channel invokeMethod:@"didTapLinkButton" arguments:@{
-        @"cardInstanceId": action.cardInstanceId,
-        @"containerId": action.containerId,
-        @"actionPayload": action.actionPayload
-    }];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.channel invokeMethod:@"didTapLinkButton" arguments:@{
+            @"cardInstanceId": action.cardInstanceId,
+            @"containerId": action.containerId,
+            @"actionPayload": action.actionPayload
+        }];
+    });
 }
 
 - (void)streamContainerDidTapSubmitButton:(AACStreamContainerViewController *)streamContainer withAction:(AACCardCustomAction *)action {
-    [self.channel invokeMethod:@"didTapSubmitButton" arguments:@{
-        @"cardInstanceId": action.cardInstanceId,
-        @"containerId": action.containerId,
-        @"actionPayload": action.actionPayload
-    }];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.channel invokeMethod:@"didTapSubmitButton" arguments:@{
+            @"cardInstanceId": action.cardInstanceId,
+            @"containerId": action.containerId,
+            @"actionPayload": action.actionPayload
+        }];
+    });
 }
 
 #pragma mark - AACCardEventDelegate
@@ -258,8 +264,10 @@ NSString *_Nonnull const kAACErrorCodeUnsupportedChannelCommand = @"01";
             kind = @"cardSnoozeFailed";
             break;
     }
-    [self.channel invokeMethod:@"didTriggerCardEvent" arguments:@{
-        @"cardEvent": @{@"kind": kind}
-    }];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.channel invokeMethod:@"didTriggerCardEvent" arguments:@{
+            @"cardEvent": @{@"kind": kind}
+        }];
+    });
 }
 @end

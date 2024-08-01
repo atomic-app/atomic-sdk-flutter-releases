@@ -72,7 +72,9 @@
     [self.containerViewController.view addConstraints:vConstraints];
     
     [vc didMoveToParentViewController:self.containerViewController];
-    [self.channel invokeMethod:@"viewLoaded" arguments:nil];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.channel invokeMethod:@"viewLoaded" arguments:nil];
+    });
 }
 
 - (void)dealloc {
@@ -101,6 +103,8 @@
 
 #pragma mark - AACStreamContainerActionDelegate
 - (void)streamContainerDidTapActionButton:(AACStreamContainerViewController *)streamContainer {    
-    [self.channel invokeMethod:@"didTapActionButton" arguments:@{}];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.channel invokeMethod:@"didTapActionButton" arguments:@{}];
+    });
 }
 @end

@@ -12,9 +12,12 @@ Pod::Spec.new do |s|
   s.source_files = 'Classes/**/*'
   s.public_header_files = 'Classes/**/*.h'
   s.dependency 'Flutter'
-  s.dependency 'AtomicSDK', '23.4.0'
+  s.dependency 'AtomicSDK', '24.2.0' # comment out '24.2.0' when switching to beta branch.
   s.platform = :ios, '12.0'
 
   # Flutter.framework does not contain a i386 slice.
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
+
+  # Privacy Manifest file (copied from https://github.com/atomic-app/action-cards-ios-sdk/blob/develop/ActionCardsSDK/ActionCardsSDK/PrivacyInfo.xcprivacy)
+  s.resource_bundles = {'atomic_sdk_flutter_privacy' => ['Resources/PrivacyInfo.xcprivacy']}
 end

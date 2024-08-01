@@ -29,7 +29,9 @@ data class AACContainerSettings(
   val launchColorBackground: Int,
   val launchColorLoadingIndicator: Int,
   val launchColorButton: Int,
-  val launchColorText: Int
+  val launchColorText: Int,
+
+  val cardMaxWidth: Int,
 ) {
 
   companion object {
@@ -54,6 +56,7 @@ data class AACContainerSettings(
         val loadingIndicator = (launchColors["loadingIndicator"] as? Long)?.toInt()
         val buttonColor = (launchColors["button"] as? Long)?.toInt()
         val textColor = (launchColors["text"] as? Long)?.toInt()
+        val cardMaxWidth = configuration["cardMaxWidth"] as? Int
         AACContainerSettings(
           containerId,
           pollingInterval ?: 15,
@@ -67,7 +70,8 @@ data class AACContainerSettings(
           background ?: 0,
           loadingIndicator ?: 0,
           buttonColor ?: 0,
-          textColor ?: 0
+          textColor ?: 0,
+          cardMaxWidth ?: 0,
         )
       }
     }

@@ -59,50 +59,48 @@ class AACSDKEvent {
     // Use this print statement to check the json recieved from the native wrappers, compared to the sdk log in the shell app.
     //print("sdkeventsobserver tryParseFromJson sdkEventJson $sdkEventJson");
 
-    if (_SDKEventUtils._isNullOrEmpty(sdkEventJson)) {
+    if (_SDKEventUtils._setEmptyStringValuesToNull(sdkEventJson)
+        case {
+          "identifier": final String identifier,
+          "eventName": final String? eventTypeString,
+          "timestamp": final String timeStampString,
+          "userId": final String? userId,
+          "cardCount": final int? cardCount,
+          "cardContext": final Map<dynamic, dynamic>? cardContextJson,
+          "properties": final Map<dynamic, dynamic>? propertiesJson,
+          "containerId": final String? containerId,
+          "streamContext": final Map<dynamic, dynamic>? streamContextJson,
+        }) {
+      final eventType = AACSDKEventType._tryParse(eventTypeString);
+      if (eventType == null) {
+        return null;
+      }
+
+      final timestamp = DateTime.tryParse(timeStampString);
+      if (timestamp == null) {
+        return null;
+      }
+
+      return AACSDKEvent(
+        identifier: identifier,
+        eventType: eventType,
+        timestamp: timestamp,
+        userId: userId,
+        cardCount: cardCount,
+        cardContext: AACSDKEventCardContext._tryParseFromJson(
+          cardContextJson?.cast<String, String?>(),
+        ),
+        properties: AACSDKEventProperties._tryParseFromJson(
+          propertiesJson?.cast<String, dynamic>(),
+        ),
+        containerId: containerId,
+        streamContext: AACSDKEventStreamContext._tryParseFromJson(
+          streamContextJson?.cast<String, dynamic>(),
+        ),
+      );
+    } else {
       return null;
     }
-
-    final identifier = sdkEventJson["identifier"] as String?;
-    if (identifier == null) {
-      return null;
-    }
-
-    final eventNameString = sdkEventJson["eventName"] as String?;
-    if (eventNameString == null) {
-      return null;
-    }
-    final eventType = AACSDKEventType._parse(eventNameString);
-
-    final timeStampString = sdkEventJson["timestamp"] as String?;
-    if (timeStampString == null) {
-      return null;
-    }
-    final timestamp = DateTime.tryParse(timeStampString);
-    if (timestamp == null) {
-      return null;
-    }
-
-    final sdkEventJsonTrimmed =
-        _SDKEventUtils._setEmptyStringValuesToNull(sdkEventJson);
-
-    return AACSDKEvent(
-      identifier: identifier,
-      eventType: eventType,
-      timestamp: timestamp,
-      userId: sdkEventJsonTrimmed["userId"] as String?,
-      cardCount: sdkEventJsonTrimmed["cardCount"] as int?,
-      cardContext: AACSDKEventCardContext._parseFromJson(
-        (sdkEventJsonTrimmed["cardContext"] as Map?)?.cast<String, String?>(),
-      ),
-      properties: AACSDKEventProperties._parseFromJson(
-        (sdkEventJsonTrimmed["properties"] as Map?)?.cast<String, dynamic>(),
-      ),
-      containerId: sdkEventJsonTrimmed["containerId"] as String?,
-      streamContext: AACSDKEventStreamContext._parseFromJson(
-        (sdkEventJsonTrimmed["streamContext"] as Map?)?.cast<String, dynamic>(),
-      ),
-    );
   }
 }
 
@@ -176,12 +174,15 @@ enum AACSDKEventType {
   /// An unknown event is observed.
   UnknownEvent;
 
-  static AACSDKEventType _parse(String str) {
+  static AACSDKEventType? _tryParse(String? str) {
+    if (str == null) {
+      return null;
+    }
     return AACSDKEventType.values.firstWhere(
       (eT) => eT.name == str,
       orElse: () {
         if (kDebugMode) {
-          print("sdkeventsobserver UnknownCardViewState: $str");
+          print("sdkeventsobserver UnknownSDKEventType: $str");
         }
         return AACSDKEventType.UnknownEvent;
       },
@@ -200,16 +201,20 @@ enum AACSDKEventCardViewState {
 
   UnknownCardViewState;
 
-  static AACSDKEventCardViewState _parse(String str) {
-    if (str == "topview") {
-      return AACSDKEventCardViewState.TopView;
-    } else if (str == "subview") {
-      return AACSDKEventCardViewState.SubView;
+  static AACSDKEventCardViewState? _tryParse(String? str) {
+    switch (str) {
+      case null:
+        return null;
+      case "topview":
+        return AACSDKEventCardViewState.TopView;
+      case "subview":
+        return AACSDKEventCardViewState.SubView;
+      default:
+        if (kDebugMode) {
+          print("sdkeventsobserver UnknownCardViewState: $str");
+        }
+        return AACSDKEventCardViewState.UnknownCardViewState;
     }
-    if (kDebugMode) {
-      print("sdkeventsobserver UnknownCardViewState: $str");
-    }
-    return AACSDKEventCardViewState.UnknownCardViewState;
   }
 }
 
@@ -227,18 +232,22 @@ enum AACSDKEventReason {
 
   UnknownReason;
 
-  static AACSDKEventReason _parse(String str) {
-    if (str == "too-often") {
-      return AACSDKEventReason.TooOften;
-    } else if (str == "other") {
-      return AACSDKEventReason.Other;
-    } else if (str == "not-relevant") {
-      return AACSDKEventReason.Relevant;
+  static AACSDKEventReason? _tryParse(String? str) {
+    switch (str) {
+      case null:
+        return null;
+      case "too-often":
+        return AACSDKEventReason.TooOften;
+      case "other":
+        return AACSDKEventReason.Other;
+      case "not-relevant":
+        return AACSDKEventReason.Relevant;
+      default:
+        if (kDebugMode) {
+          print("sdkeventsobserver UnknownReason: $str");
+        }
+        return AACSDKEventReason.UnknownReason;
     }
-    if (kDebugMode) {
-      print("sdkeventsobserver UnknownReason: $str");
-    }
-    return AACSDKEventReason.UnknownReason;
   }
 }
 
@@ -252,16 +261,49 @@ enum AACSDKEventLinkMethod {
 
   UnknownLinkMethod;
 
-  static AACSDKEventLinkMethod _parse(String str) {
-    if (str == "payload") {
-      return AACSDKEventLinkMethod.Payload;
-    } else if (str == "url") {
-      return AACSDKEventLinkMethod.Url;
+  static AACSDKEventLinkMethod? _tryParse(String? str) {
+    switch (str) {
+      case null:
+        return null;
+      case "payload":
+        return AACSDKEventLinkMethod.Payload;
+      case "url":
+        return AACSDKEventLinkMethod.Url;
+      default:
+        if (kDebugMode) {
+          print("sdkeventsobserver UnknownLinkMethod: $str");
+        }
+        return AACSDKEventLinkMethod.UnknownLinkMethod;
     }
-    if (kDebugMode) {
-      print("sdkeventsobserver UnknownLinkMethod: $str");
+  }
+}
+
+/// The card component from which a user gets redirected.
+enum AACSDKEventDetail {
+  Image,
+  LinkButton,
+  SubmitButton,
+  TextLink,
+  UnknownDetail;
+
+  static AACSDKEventDetail? _tryParse(String? str) {
+    switch (str) {
+      case null:
+        return null;
+      case "image":
+        return AACSDKEventDetail.Image;
+      case "linkButton":
+        return AACSDKEventDetail.LinkButton;
+      case "submitButton":
+        return AACSDKEventDetail.SubmitButton;
+      case "textLink":
+        return AACSDKEventDetail.TextLink;
+      default:
+        if (kDebugMode) {
+          print("sdkeventsobserver UnknownDetail: $str");
+        }
+        return AACSDKEventDetail.UnknownDetail;
     }
-    return AACSDKEventLinkMethod.UnknownLinkMethod;
   }
 }
 
@@ -278,18 +320,22 @@ enum AACSDKEventDisplayMode {
 
   UnknownDisplayMode;
 
-  static AACSDKEventDisplayMode _parse(String str) {
-    if (str == "stream") {
-      return AACSDKEventDisplayMode.Vertical;
-    } else if (str == "horizon") {
-      return AACSDKEventDisplayMode.Horizontal;
-    } else if (str == "single") {
-      return AACSDKEventDisplayMode.Single;
+  static AACSDKEventDisplayMode? _tryParse(String? str) {
+    switch (str) {
+      case null:
+        return null;
+      case "stream":
+        return AACSDKEventDisplayMode.Vertical;
+      case "horizon":
+        return AACSDKEventDisplayMode.Horizontal;
+      case "single":
+        return AACSDKEventDisplayMode.Single;
+      default:
+        if (kDebugMode) {
+          print("sdkeventsobserver UnknownDisplayMode: $str");
+        }
+        return AACSDKEventDisplayMode.UnknownDisplayMode;
     }
-    if (kDebugMode) {
-      print("sdkeventsobserver UnknownDisplayMode: $str");
-    }
-    return AACSDKEventDisplayMode.UnknownDisplayMode;
   }
 }
 
@@ -315,7 +361,7 @@ class AACSDKEventCardContext {
   /// The state that the card to be in when the event happened.
   final AACSDKEventCardViewState? cardViewState;
 
-  static AACSDKEventCardContext? _parseFromJson(
+  static AACSDKEventCardContext? _tryParseFromJson(
     Map<String, String?>? cardContextJson,
   ) {
     if (_SDKEventUtils._isNullOrEmpty(cardContextJson)) {
@@ -329,11 +375,9 @@ class AACSDKEventCardContext {
       return null;
     }
 
-    final cardViewStateString = cardContextJsonTrimmed["cardViewState"];
-    AACSDKEventCardViewState? cardViewState;
-    if (cardViewStateString != null) {
-      cardViewState = AACSDKEventCardViewState._parse(cardViewStateString);
-    }
+    final cardViewState = AACSDKEventCardViewState._tryParse(
+      cardContextJsonTrimmed["cardViewState"],
+    );
 
     return AACSDKEventCardContext(
       cardInstanceId: cardContextJsonTrimmed["cardInstanceId"],
@@ -365,7 +409,7 @@ class AACSDKEventStreamContext {
   /// The mode of how a stream container displays cards.
   final AACSDKEventDisplayMode? displayMode;
 
-  static AACSDKEventStreamContext? _parseFromJson(
+  static AACSDKEventStreamContext? _tryParseFromJson(
     Map<String, dynamic>? streamContextJson,
   ) {
     if (_SDKEventUtils._isNullOrEmpty(streamContextJson)) {
@@ -374,25 +418,25 @@ class AACSDKEventStreamContext {
 
     final streamContextJsonTrimmed =
         _SDKEventUtils._setEmptyStringValuesToNull(streamContextJson!);
+
     if (_SDKEventUtils._isEveryValueInsideNull(streamContextJsonTrimmed)) {
       return null;
+    } else if (streamContextJsonTrimmed
+        case {
+          "displayMode": final String? displayModeString,
+          "streamLength": final int? streamLength,
+          "cardPositionInStream": final int? cardPositionInStream,
+          "streamLengthVisible": final int? streamLengthVisible,
+        }) {
+      return AACSDKEventStreamContext(
+        streamLength: streamLength,
+        cardPositionInStream: cardPositionInStream,
+        streamLengthVisible: streamLengthVisible,
+        displayMode: AACSDKEventDisplayMode._tryParse(displayModeString),
+      );
+    } else {
+      return null;
     }
-
-    final displayModeString =
-        streamContextJsonTrimmed["displayMode"] as String?;
-    AACSDKEventDisplayMode? displayMode;
-    if (displayModeString != null) {
-      displayMode = AACSDKEventDisplayMode._parse(displayModeString);
-    }
-
-    return AACSDKEventStreamContext(
-      streamLength: streamContextJsonTrimmed["streamLength"] as int?,
-      cardPositionInStream:
-          streamContextJsonTrimmed["cardPositionInStream"] as int?,
-      streamLengthVisible:
-          streamContextJsonTrimmed["streamLengthVisible"] as int?,
-      displayMode: displayMode,
-    );
   }
 }
 
@@ -403,6 +447,7 @@ class AACSDKEventProperties {
     this.subviewTitle,
     this.subviewLevel,
     this.linkMethod,
+    this.detail,
     this.url,
     this.redirectPayload,
     this.submittedValues,
@@ -429,6 +474,9 @@ class AACSDKEventProperties {
 
   /// The way that the user gets redirected.
   final AACSDKEventLinkMethod? linkMethod;
+
+  /// The card component from which a user gets redirected.
+  final AACSDKEventDetail? detail;
 
   /// If a [AACSDKEventType.UserRedirected] event, represents:
   ///     The URL that the user was redirected to, if a URL redirection was used.
@@ -464,7 +512,7 @@ class AACSDKEventProperties {
   /// The date and time at which the card is unsnoozed.
   final DateTime? unsnoozeDate;
 
-  static AACSDKEventProperties? _parseFromJson(
+  static AACSDKEventProperties? _tryParseFromJson(
     Map<String, dynamic>? propertiesJson,
   ) {
     if (_SDKEventUtils._isNullOrEmpty(propertiesJson)) {
@@ -475,45 +523,45 @@ class AACSDKEventProperties {
         _SDKEventUtils._setEmptyStringValuesToNull(propertiesJson!);
     if (_SDKEventUtils._isEveryValueInsideNull(propertiesJsonTrimmed)) {
       return null;
+    } else if (propertiesJsonTrimmed
+        case {
+          "unsnooze": final String? unsnoozedString,
+          "linkMethod": final String? linkMethodString,
+          "detail": final String? detailString,
+          "reason": final String? reasonString,
+          "message": final String? message,
+          "path": final String? path,
+          "source": final String? source,
+          "subviewId": final String? subviewId,
+          "subviewTitle": final String? subviewTitle,
+          "url": final String? url,
+          "statusCode": final int? statusCode,
+          "subviewLevel": final int? subviewLevel,
+          "resolvedVariables": final Map<dynamic, dynamic>? resolvedVariables,
+          "redirectPayload": final Map<dynamic, dynamic>? redirectPayload,
+          "submittedValues": final Map<dynamic, dynamic>? submittedValues,
+        }) {
+      return AACSDKEventProperties(
+        message: message,
+        linkMethod: AACSDKEventLinkMethod._tryParse(linkMethodString),
+        detail: AACSDKEventDetail._tryParse(detailString),
+        path: path,
+        reason: AACSDKEventReason._tryParse(reasonString),
+        source: source,
+        subviewId: subviewId,
+        subviewTitle: subviewTitle,
+        url: url,
+        statusCode: statusCode,
+        subviewLevel: subviewLevel,
+        resolvedVariables: resolvedVariables?.cast<String, String>(),
+        redirectPayload: redirectPayload?.cast<String, dynamic>(),
+        submittedValues: submittedValues?.cast<String, dynamic>(),
+        unsnoozeDate:
+            unsnoozedString != null ? DateTime.tryParse(unsnoozedString) : null,
+      );
+    } else {
+      return null;
     }
-
-    DateTime? unsnoozed;
-    final unsnoozedRaw = propertiesJsonTrimmed["unsnooze"] as String?;
-    if (unsnoozedRaw != null) {
-      unsnoozed = DateTime.tryParse(unsnoozedRaw);
-    }
-
-    final linkMethodString = propertiesJsonTrimmed["linkMethod"] as String?;
-    AACSDKEventLinkMethod? linkMethod;
-    if (linkMethodString != null) {
-      linkMethod = AACSDKEventLinkMethod._parse(linkMethodString);
-    }
-
-    final reasonString = propertiesJsonTrimmed["reason"] as String?;
-    AACSDKEventReason? reason;
-    if (reasonString != null) {
-      reason = AACSDKEventReason._parse(reasonString);
-    }
-
-    return AACSDKEventProperties(
-      message: propertiesJsonTrimmed["message"] as String?,
-      linkMethod: linkMethod,
-      path: propertiesJsonTrimmed["path"] as String?,
-      reason: reason,
-      source: propertiesJsonTrimmed["source"] as String?,
-      subviewId: propertiesJsonTrimmed["subviewId"] as String?,
-      subviewTitle: propertiesJsonTrimmed["subviewTitle"] as String?,
-      url: propertiesJsonTrimmed["url"] as String?,
-      statusCode: propertiesJsonTrimmed["statusCode"] as int?,
-      subviewLevel: propertiesJsonTrimmed["subviewLevel"] as int?,
-      resolvedVariables: (propertiesJsonTrimmed["resolvedVariables"] as Map?)
-          ?.cast<String, String>(),
-      redirectPayload: (propertiesJsonTrimmed["redirectPayload"] as Map?)
-          ?.cast<String, dynamic>(),
-      submittedValues: (propertiesJsonTrimmed["submittedValues"] as Map?)
-          ?.cast<String, dynamic>(),
-      unsnoozeDate: unsnoozed,
-    );
   }
 }
 
