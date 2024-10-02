@@ -1,6 +1,6 @@
 name: atomic_sdk_flutter
 description: Flutter wrapper for the Atomic iOS and Android SDKs.
-version: 24.2.0
+version: 24.2.1
 homepage: https://atomic.io
 
 environment:

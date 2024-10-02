@@ -1,3 +1,6 @@
+## 24.2.1
+- **Enhancement**: Removes the unused `QUERY_ALL_PACKAGES` permission in `AndroidManifest.xml`.
+
 ## 24.2.0
 - **Feature:** Updated to match version 24.2.0 of Atomic's iOS SDK and version 24.2.1 of Atomic's Android SDK. For more details, see the [Flutter guide](https://documentation.atomic.io/sdks/flutter).
 - **Bugfix**: Fixed occasional unexpected Exceptions in iOS.

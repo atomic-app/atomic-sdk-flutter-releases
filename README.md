@@ -1,4 +1,4 @@
-# Flutter SDK - Current (24.2.0)
+# Flutter SDK - Current (24.2.1)
 
 ## Introduction
 
@@ -12,7 +12,7 @@ Atomic Flutter SDK is `null-safe`.
 
 **Dart SDK 2.17.0+** is required.
 
-The current stable release is **24.2.0**.
+The current stable release is **24.2.1**.
 
 ## Boilerplate app
 
@@ -33,7 +33,7 @@ dependencies:
   atomic_sdk_flutter:
     git:
       url: git@github.com:atomic-app/atomic-sdk-flutter-releases.git
-      ref: 24.2.0
+      ref: 24.2.1
 ```
 
 The `ref` property should be set to the version number of the Flutter SDK that you wish to use. A list of version numbers is documented in our [changelog](https://documentation.atomic.io/resources/changelog).
